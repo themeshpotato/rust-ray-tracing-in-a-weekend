@@ -1,29 +1,35 @@
 mod math;
 mod ray;
+mod hittable;
 
 use math::*;
 use ray::*;
+use hittable::*;
 use std::io::{self, Write};
 
-fn hit_sphere(center: &Point3, radius: f64, ray: &Ray) -> bool {
+fn hit_sphere(center: &Point3, radius: f64, ray: &Ray) -> f64 {
     let oc = ray.origin - *center;
-    let a = Vector3::dot(&ray.direction, &ray.direction);
-    let b = 2.0 * Vector3::dot(&oc, &ray.direction);
-    let c = Vector3::dot(&oc, &oc) - radius * radius;
-    let discrimant = b * b - 4.0 * a * c;
-    
-    (discrimant > 0.0)
+    let a = ray.direction.length_squared();
+    let half_b = Vector3::dot(&oc, &ray.direction);
+    let c = oc.length_squared() - radius * radius;
+    let discrimant = half_b * half_b - a * c;
+
+    if discrimant < 0.0 {
+        -1.0
+    } else {
+        (-half_b - discrimant.sqrt() ) / a
+    }
 }
 
-fn ray_color(ray: &Ray) -> Color {
-    if hit_sphere(&Point3::new(0.0, 0.0, -1.0), 0.5, ray) {
-        Color::new(1.0, 0.0, 0.0)
-    } else {
-        let normalized_dir = Vector3::normalize(&ray.direction);
-        let t = 0.5 * (normalized_dir.y + 1.0);
-
-        (1.0 - t) * Color::new(1.0, 1.0, 1.0) + t * Color::new(0.5, 0.7, 1.0)
+fn ray_color(ray: &Ray, hittables: &Vec<Hittable>) -> Color {
+    if let Some(rec) = hit_hittables(hittables, ray, 0.0, INFINITY) {
+        return 0.5 * (rec.normal + Color::new(1.0, 1.0, 1.0));
     }
+
+    let normalized_dir = Vector3::normalize(&ray.direction);
+    let t = 0.5 * (normalized_dir.y + 1.0);
+
+    (1.0 - t) * Color::new(1.0, 1.0, 1.0) + t * Color::new(0.5, 0.7, 1.0)
 }
 
 fn main() {
@@ -31,6 +37,12 @@ fn main() {
     let aspect_ratio: f64 = 16.0 / 9.0;
     let image_width: usize = 400;
     let image_height = (image_width as f64 / aspect_ratio) as usize;
+
+    // World
+
+    let mut world: Vec<Hittable> = Vec::new();
+    world.push(Hittable::Sphere(Point3::new(0.0, 0.0, -1.0), 0.5));
+    world.push(Hittable::Sphere(Point3::new(0.0, -100.5, -1.0), 100.0));
 
     // Camera
     let viewport_height: f64 = 2.0;
@@ -54,7 +66,7 @@ fn main() {
 
             let r = Ray::new(origin, lower_left_corner + u * horizontal + v * vertical - origin);
 
-            let pixel_color = ray_color(&r);
+            let pixel_color = ray_color(&r, &world);
             pixel_color.write_color();
         }
     }

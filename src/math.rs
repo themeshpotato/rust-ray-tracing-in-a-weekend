@@ -1,6 +1,13 @@
 use std::fmt;
 use std::ops;
 
+pub const PI: f64 = 3.1415926535897932385;
+pub const INFINITY: f64 = f64::INFINITY;
+
+pub fn degrees_to_radians(degrees: f64) -> f64 {
+    degrees * PI / 180.0
+}
+
 #[derive(Copy, Clone, Default)]
 pub struct Vector3 {
     pub x: f64,
@@ -83,6 +90,31 @@ impl ops::Sub for Vector3 {
         )
     }
 }
+
+impl ops::Neg for Vector3 {
+    type Output = Self;
+
+    fn neg(self) -> Self {
+        Vector3::new(
+            -self.x,
+            -self.y,
+            -self.z
+        )
+    }
+}
+
+impl ops::Neg for &Vector3 {
+    type Output = Vector3;
+
+    fn neg(self) -> Vector3 {
+        Vector3::new(
+            -self.x,
+            -self.y,
+            -self.z
+        )
+    }
+}
+
 
 
 impl ops::Mul for Vector3 {

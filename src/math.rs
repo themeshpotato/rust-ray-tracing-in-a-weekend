@@ -1,5 +1,6 @@
 use std::fmt;
 use std::ops;
+use rand::{thread_rng, Rng};
 
 pub const PI: f64 = 3.1415926535897932385;
 pub const INFINITY: f64 = f64::INFINITY;
@@ -27,6 +28,44 @@ impl Vector3 {
         }
     }
 
+    pub fn random() -> Vector3 {
+        Vector3 {
+            x: random_double(),
+            y: random_double(),
+            z: random_double()
+        }
+    }
+
+    pub fn random_range(min: f64, max: f64) -> Vector3 {
+        Vector3 {
+            x: random_double_range(min, max),
+            y: random_double_range(min, max),
+            z: random_double_range(min, max)
+        }
+    }
+
+    pub fn random_in_unit_sphere() -> Vector3 {
+        loop {
+            let p = Vector3::random_range(-1.0, 1.0);
+            if p.length_squared() < 1.0 {
+                return p;
+            }
+        }
+    }
+
+    pub fn random_in_hemisphere(normal: &Vector3) -> Vector3 {
+        let in_unit_sphere = Self::random_in_unit_sphere();
+        if Vector3::dot(&in_unit_sphere, normal) > 0.0 {
+            in_unit_sphere
+        } else {
+            -in_unit_sphere
+        }
+    }
+
+    pub fn random_unit_vector() -> Vector3 {
+        Self::normalize(&Self::random_in_unit_sphere())
+    }
+
     pub fn dot(u: &Vector3, v: &Vector3) -> f64 {
         u.x * v.x + u.y * v.y + u.z * v.z 
     }
@@ -51,10 +90,17 @@ impl Vector3 {
         *v / v.length()
     }
 
-    pub fn write_color(&self) { 
-        let ir = (255.999 * self.x) as i32;
-        let ig = (255.999 * self.y) as i32;
-        let ib = (255.999 * self.z) as i32;
+    pub fn write_color(&self, samples_per_pixel: i32) { 
+        let scale = 1.0 / samples_per_pixel as f64;
+
+        // Divice the color by the number of samples and gamme-correct for gamme=2.0
+        let r = (self.x * scale).sqrt();
+        let g = (self.y * scale).sqrt();
+        let b = (self.z * scale).sqrt();
+
+        let ir = (256.0 * clamp(r, 0.0, 0.999)) as i32;
+        let ig = (256.0 * clamp(g, 0.0, 0.999)) as i32;
+        let ib = (256.0 * clamp(b, 0.0, 0.999)) as i32;
 
         println!("{} {} {}", ir, ig, ib);
     }
@@ -76,6 +122,16 @@ impl ops::Add for Vector3 {
             self.y + rhs.y,
             self.z + rhs.z
         )
+    }
+}
+
+impl ops::AddAssign for Vector3 {
+    fn add_assign(&mut self, other: Self) {
+        *self = Self {
+            x: self.x + other.x,
+            y: self.y + other.y,
+            z: self.z + other.z
+        };
     }
 }
 
@@ -157,10 +213,22 @@ impl ops::Div<f64> for Vector3 {
     type Output = Self;
 
     fn div(self, rhs: f64) -> Self {
-        Vector3::new(
-            self.x / rhs,
-            self.y / rhs,
-            self.z / rhs
-        )
+        (1.0 / rhs) * self
     }
+}
+
+pub fn random_double() -> f64 {
+    let mut rng = thread_rng();
+    rng.gen()
+}
+
+pub fn random_double_range(min: f64, max: f64) -> f64 {
+   let mut rng = thread_rng();
+   rng.gen_range(min..=max)
+}
+
+pub fn clamp(x: f64, min: f64, max: f64) -> f64 {
+    if x < min { min }
+    else if x > max { max }
+    else { x }
 }

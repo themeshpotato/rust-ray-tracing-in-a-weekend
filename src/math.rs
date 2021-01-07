@@ -94,6 +94,15 @@ impl Vector3 {
         *v - 2.0 * Vector3::dot(v, n) * n
     }
 
+    pub fn refract(uv: &Vector3, n: &Vector3, etai_over_etat: f64) -> Vector3 {
+        let cos_theta = Vector3::dot(&-uv, n).min(1.0);
+        let r_out_perp = etai_over_etat * (*uv + cos_theta * n);
+        let r_out_perp_length = r_out_perp.length_squared();
+        let r_out_parallel = -((1.0 - r_out_perp_length).abs()).sqrt() * n;
+
+        r_out_perp + r_out_parallel
+    }
+
     pub fn write_color(&self, samples_per_pixel: i32) { 
         let scale = 1.0 / samples_per_pixel as f64;
 

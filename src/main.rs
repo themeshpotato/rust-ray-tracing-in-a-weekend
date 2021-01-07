@@ -61,9 +61,9 @@ fn main() {
     let mut world: Vec<Hittable> = Vec::new();
 
     let material_ground = Material::Lambertian { albedo: Color::new(0.8, 0.8, 0.0) };
-    let material_center = Material::Lambertian { albedo: Color::new(0.7, 0.3, 0.3) };
-    let material_left = Material::Metal { albedo: Color::new(0.8, 0.8, 0.8), fuzz: 0.3 };
-    let material_right = Material::Metal { albedo: Color::new(0.8, 0.6, 0.2), fuzz: 1.0 };
+    let material_center = Material::Lambertian { albedo: Color::new(0.1, 0.2, 0.5) };
+    let material_left = Material::Dielectric { ir: 1.5 }; //Material::Metal { albedo: Color::new(0.8, 0.8, 0.8), fuzz: 0.3 };
+    let material_right = Material::Metal { albedo: Color::new(0.8, 0.6, 0.2), fuzz: 0.0 };
     
     let mut materials = Vec::new();
     materials.push(material_ground);
@@ -74,6 +74,7 @@ fn main() {
     world.push(Hittable::Sphere { mat_handle: MaterialHandle(1), center: Point3::new(0.0, -100.5, -1.0), radius: 100.0 });
     world.push(Hittable::Sphere { mat_handle: MaterialHandle(2), center: Point3::new(0.0, 0.0, -1.0), radius: 0.5 });
     world.push(Hittable::Sphere { mat_handle: MaterialHandle(3), center: Point3::new(-1.0, 0.0, -1.0), radius: 0.5 });
+    world.push(Hittable::Sphere { mat_handle: MaterialHandle(3), center: Point3::new(-1.0, 0.0, -1.0), radius: -0.4 });
     world.push(Hittable::Sphere { mat_handle: MaterialHandle(4), center: Point3::new(1.0, 0.0, -1.0), radius: 0.5 });
 
     // Camera

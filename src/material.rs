@@ -4,14 +4,16 @@ use crate::hittable::*;
 
 pub enum Material {
     Lambertian { albedo: Color },
-    Metal { albedo: Color, fuzz: f64 }
+    Metal { albedo: Color, fuzz: f64 },
+    Dielectric { ir: f64 }
 }
 
 impl Material {
     pub fn scatter(&self, ray: &Ray, rec: &HitRecord) -> Option<(Ray, Color)> {
         match self {
             Material::Lambertian { albedo } => Self::lambertian_scatter(albedo, ray, rec),
-            Material::Metal { albedo, fuzz } => Self::metal_scatter(albedo, *fuzz, ray, rec)
+            Material::Metal { albedo, fuzz } => Self::metal_scatter(albedo, *fuzz, ray, rec),
+            Material::Dielectric { ir } => Self::dielectric_scatter(*ir, ray, rec)
         }
     }
 
@@ -37,6 +39,35 @@ impl Material {
         } else {
             None
         }
+    }
+
+    fn dielectric_scatter(ir: f64, ray: &Ray, rec: &HitRecord) -> Option<(Ray, Color)> {
+        let attenuation = Color::new(1.0, 1.0, 1.0);
+        let refraction_ratio = if rec.front_face { 1.0 / ir } else { ir };
+
+        let unit_direction = Vector3::normalize(&ray.direction);
+        let cos_theta = Vector3::dot(&(-unit_direction), &rec.normal).min(1.0);
+        let sin_theta = (1.0 - cos_theta * cos_theta).sqrt();
+
+        let cannot_refract = refraction_ratio * sin_theta > 1.0;
+        let direction = {
+            if cannot_refract || Self::reflectance(cos_theta, refraction_ratio) > random_double() {
+                Vector3::reflect(&unit_direction, &rec.normal)
+            } else {
+                Vector3::refract(&unit_direction, &rec.normal, refraction_ratio)
+            }
+        };
+        
+        let scattered = Ray::new(rec.point, direction);
+
+        Some((scattered, attenuation))
+    }
+
+    fn reflectance(cosine: f64, ref_idx: f64) -> f64 {
+        // Use Schlick's approximation for reflectance.
+        let mut r0 = (1.0 - ref_idx) / (1.0 + ref_idx);
+        r0 = r0 * r0;
+        r0 + (1.0 - r0) * (1.0 - cosine).powf(5.0)
     }
 }
 

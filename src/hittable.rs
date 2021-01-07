@@ -7,7 +7,8 @@ pub struct HitRecord {
     pub point: Point3,
     pub normal: Vector3,
     pub t: f64,
-    pub front_face: bool
+    pub front_face: bool,
+    pub mat_handle: MaterialHandle
 }
 
 impl HitRecord {
@@ -44,12 +45,12 @@ impl Hittable {
     pub fn hit(&self, ray: &Ray, t_min: f64, t_max: f64) -> Option<HitRecord> {
         match self {
             Hittable::Sphere { mat_handle, center, radius } => {
-                Self::sphere_hit(&center, *radius, ray, t_min, t_max)
+                Self::sphere_hit(&center, *radius, ray, t_min, t_max, *mat_handle)
             }
         }
     }
 
-    fn sphere_hit(center: &Point3, radius: f64, ray: &Ray, t_min: f64, t_max: f64) -> Option<HitRecord> {
+    fn sphere_hit(center: &Point3, radius: f64, ray: &Ray, t_min: f64, t_max: f64, mat_handle: MaterialHandle) -> Option<HitRecord> {
         let oc = ray.origin - *center;
         let a = ray.direction.length_squared();
         let half_b = Vector3::dot(&oc, &ray.direction);
@@ -72,6 +73,7 @@ impl Hittable {
         
         let mut rec = HitRecord::new();
 
+        rec.mat_handle = mat_handle;
         rec.t = root;
         rec.point = ray.at(rec.t);
         let outward_normal = (rec.point - *center) / radius;

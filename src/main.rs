@@ -26,16 +26,20 @@ fn hit_sphere(center: &Point3, radius: f64, ray: &Ray) -> f64 {
     }
 }
 
-fn ray_color(ray: &Ray, hittables: &Vec<Hittable>, depth: i32) -> Color {
+fn ray_color(ray: &Ray, hittables: &Vec<Hittable>, depth: i32, materials: &Vec<Material>) -> Color {
     // If we've exceeded the ray bounce limit, no more light is gathered
     if depth <= 0 {
         return Color::new(0.0, 0.0, 0.0);
     }
 
     if let Some(rec) = hit_hittables(hittables, ray, 0.001, INFINITY) {
-        let target = rec.point + rec.normal + Vector3::random_in_hemisphere(&rec.normal);
-        let ray = Ray::new(rec.point, target - rec.point);
-        return 0.5 * ray_color(&ray, hittables, depth - 1);
+        let material = &materials[rec.mat_handle.0 - 1];
+
+        if let Some((scattered, attenuation)) = material.scatter(ray, &rec) {
+            return attenuation * ray_color(&scattered, hittables, depth - 1, materials);
+        } else {
+            return Color::new(0.0, 0.0, 0.0);
+        }
     }
 
     let normalized_dir = Vector3::normalize(&ray.direction);
@@ -55,8 +59,22 @@ fn main() {
     // World
 
     let mut world: Vec<Hittable> = Vec::new();
-    world.push(Hittable::Sphere { mat_handle: MaterialHandle(0), center: Point3::new(0.0, 0.0, -1.0), radius: 0.5 });
-    world.push(Hittable::Sphere { mat_handle: MaterialHandle(0), center: Point3::new(0.0, -100.5, -1.0), radius: 100.0 });
+
+    let material_ground = Material::Lambertian { albedo: Color::new(0.8, 0.8, 0.0) };
+    let material_center = Material::Lambertian { albedo: Color::new(0.7, 0.3, 0.3) };
+    let material_left = Material::Metal { albedo: Color::new(0.8, 0.8, 0.8), fuzz: 0.3 };
+    let material_right = Material::Metal { albedo: Color::new(0.8, 0.6, 0.2), fuzz: 1.0 };
+    
+    let mut materials = Vec::new();
+    materials.push(material_ground);
+    materials.push(material_center);
+    materials.push(material_left);
+    materials.push(material_right);
+
+    world.push(Hittable::Sphere { mat_handle: MaterialHandle(1), center: Point3::new(0.0, -100.5, -1.0), radius: 100.0 });
+    world.push(Hittable::Sphere { mat_handle: MaterialHandle(2), center: Point3::new(0.0, 0.0, -1.0), radius: 0.5 });
+    world.push(Hittable::Sphere { mat_handle: MaterialHandle(3), center: Point3::new(-1.0, 0.0, -1.0), radius: 0.5 });
+    world.push(Hittable::Sphere { mat_handle: MaterialHandle(4), center: Point3::new(1.0, 0.0, -1.0), radius: 0.5 });
 
     // Camera
     let camera = Camera::new(); 
@@ -74,7 +92,7 @@ fn main() {
 
                 let r = camera.get_ray(u, v);
 
-                pixel_color += ray_color(&r, &world, max_depth);
+                pixel_color += ray_color(&r, &world, max_depth, &materials);
             }
 
             pixel_color.write_color(samples_per_pixel);

@@ -90,6 +90,10 @@ impl Vector3 {
         *v / v.length()
     }
 
+    pub fn reflect(v: &Vector3, n: &Vector3) -> Vector3 {
+        *v - 2.0 * Vector3::dot(v, n) * n
+    }
+
     pub fn write_color(&self, samples_per_pixel: i32) { 
         let scale = 1.0 / samples_per_pixel as f64;
 
@@ -103,6 +107,11 @@ impl Vector3 {
         let ib = (256.0 * clamp(b, 0.0, 0.999)) as i32;
 
         println!("{} {} {}", ir, ig, ib);
+    }
+
+    pub fn near_zero(&self) -> bool {
+        const s: f64 = 1e-8;
+        self.x.abs() < s && self.y.abs() < s && self.z.abs() < s
     }
 }
 
@@ -171,8 +180,6 @@ impl ops::Neg for &Vector3 {
     }
 }
 
-
-
 impl ops::Mul for Vector3 {
     type Output = Self;
 
@@ -208,6 +215,19 @@ impl ops::Mul<Vector3> for f64 {
         )
     }
 }
+
+impl ops::Mul<&Vector3> for f64 {
+    type Output = Vector3;
+
+    fn mul(self, rhs: &Vector3) -> Vector3 {
+        Vector3::new(
+            rhs.x * self,
+            rhs.y * self,
+            rhs.z * self
+        )
+    }
+}
+
 
 impl ops::Div<f64> for Vector3 {
     type Output = Self;

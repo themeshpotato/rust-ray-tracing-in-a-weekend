@@ -48,49 +48,74 @@ fn ray_color(ray: &Ray, hittables: &Vec<Hittable>, depth: i32, materials: &Vec<M
     (1.0 - t) * Color::new(1.0, 1.0, 1.0) + t * Color::new(0.5, 0.7, 1.0)
 }
 
+struct World {
+    pub materials: Vec<Material>,
+    pub hittables: Vec<Hittable>
+}
+
+impl World {
+    pub fn register_material(&mut self, material: Material) -> MaterialHandle {
+        self.materials.push(material);
+        MaterialHandle(self.materials.len())
+    }
+}
+
+fn random_scene() -> World {
+    let mut world = World {
+        materials: Vec::new(),
+        hittables: Vec::new()
+    };
+
+    let ground_material = world.register_material(Material::Lambertian { albedo: Color::new(0.5, 0.5, 0.5) });
+    world.hittables.push(Hittable::Sphere { mat_handle: ground_material, center: Point3::new(0.0, -1000.0, 0.0), radius: 1000.0 });
+
+    for a in -11..11 {
+        for b in -11..11 {
+            let choose_mat = random_double();
+            let center = Point3::new(a as f64 + 0.9 * random_double(), 0.2, b as f64 + 0.9 * random_double());
+
+            if (center - Point3::new(4.0, 0.2, 0.0)).length() > 0.9 {
+                
+                if choose_mat  < 0.8 {
+                    let albedo = Color::random();
+                    let sphere_material = world.register_material(Material::Lambertian { albedo });
+                    world.hittables.push(Hittable::Sphere { mat_handle: sphere_material, center, radius: 0.2 });
+                } else if choose_mat < 0.95 {
+                    let albedo = Color::random_range(0.5, 1.0); 
+                    let fuzz = random_double_range(0.0, 0.5);
+                    let sphere_material = world.register_material(Material::Metal { albedo, fuzz });
+                    world.hittables.push(Hittable::Sphere { mat_handle: sphere_material, center, radius: 0.2 });
+                } else {
+                    let sphere_material = world.register_material(Material::Dielectric { ir: 1.5 });
+                    world.hittables.push(Hittable::Sphere { mat_handle: sphere_material, center, radius: 0.2 });
+                }
+            }
+        }
+    }
+
+    world
+}
+
 fn main() {
     // Image
-    let aspect_ratio: f64 = 16.0 / 9.0;
-    let image_width: usize = 400;
+    let aspect_ratio: f64 = 3.0 / 2.0;
+    let image_width: usize = 1200;
     let image_height = (image_width as f64 / aspect_ratio) as usize;
-    let samples_per_pixel = 100;
+    let samples_per_pixel = 500;
     let max_depth = 50;
 
     // World
 
-    let mut world: Vec<Hittable> = Vec::new();
-
-    //let R = (PI / 4.0).cos();
-
-    //let material_left = Material::Lambertian { albedo: Color::new(0.0, 0.0, 1.0) }; //Material::Metal { albedo: Color::new(0.8, 0.8, 0.8), fuzz: 0.3 };
-    //let material_right = Material::Lambertian { albedo: Color::new(1.0, 0.0, 0.0) };
-    //
-    //let mut materials = Vec::new();
-    //materials.push(material_left);
-    //materials.push(material_right);
-
-    //world.push(Hittable::Sphere { mat_handle: MaterialHandle(1), center: Point3::new(-R, 0.0, -1.0), radius: R });
-    //world.push(Hittable::Sphere { mat_handle: MaterialHandle(2), center: Point3::new(R, 0.0, -1.0), radius: R });
-
-    let material_ground = Material::Lambertian { albedo: Color::new(0.8, 0.8, 0.0) };
-    let material_center = Material::Lambertian { albedo: Color::new(0.1, 0.2, 0.5) };
-    let material_left = Material::Dielectric { ir: 1.5 }; //Material::Metal { albedo: Color::new(0.8, 0.8, 0.8), fuzz: 0.3 };
-    let material_right = Material::Metal { albedo: Color::new(0.8, 0.6, 0.2), fuzz: 0.0 };
-    
-    let mut materials = Vec::new();
-    materials.push(material_ground);
-    materials.push(material_center);
-    materials.push(material_left);
-    materials.push(material_right);
-
-    world.push(Hittable::Sphere { mat_handle: MaterialHandle(1), center: Point3::new(0.0, -100.5, -1.0),    radius: 100.0 });
-    world.push(Hittable::Sphere { mat_handle: MaterialHandle(2), center: Point3::new(0.0, 0.0, -1.0),       radius: 0.5 });
-    world.push(Hittable::Sphere { mat_handle: MaterialHandle(3), center: Point3::new(-1.0, 0.0, -1.0),      radius: 0.5 });
-    world.push(Hittable::Sphere { mat_handle: MaterialHandle(3), center: Point3::new(-1.0, 0.0, -1.0),      radius: -0.4 });
-    world.push(Hittable::Sphere { mat_handle: MaterialHandle(4), center: Point3::new(1.0, 0.0, -1.0),       radius: 0.5 });
+    let mut world = random_scene();
 
     // Camera
-    let camera = Camera::new(&Point3::new(-2.0, 2.0, 1.0), &Point3::new(0.0, 0.0, -1.0), &Vector3::new(0.0, 1.0, 0.0), 20.0, aspect_ratio); 
+    let look_from = Point3::new(13.0, 2.0, 3.0);
+    let look_at = Point3::new(0.0, 0.0, 0.0);
+    let vup = Vector3::new(0.0, 1.0, 0.0);
+    let dist_to_focus = 10.0; 
+    let aperture = 0.1;
+
+    let camera = Camera::new(&look_from, &look_at, &vup, 20.0, aspect_ratio, aperture, dist_to_focus);
 
     // Render
     println!("P3\n{} {}\n255", image_width, image_height);
@@ -105,7 +130,7 @@ fn main() {
 
                 let r = camera.get_ray(u, v);
 
-                pixel_color += ray_color(&r, &world, max_depth, &materials);
+                pixel_color += ray_color(&r, &world.hittables, max_depth, &world.materials);
             }
 
             pixel_color.write_color(samples_per_pixel);

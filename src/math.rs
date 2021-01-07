@@ -62,6 +62,15 @@ impl Vector3 {
         }
     }
 
+    pub fn random_in_unit_disk() -> Vector3 {
+        loop {
+            let p = Vector3::new(random_double_range(-1.0, 1.0), random_double_range(-1.0, 1.0), 0.0);
+            if p.length_squared() < 1.0 {
+                return p;
+            }
+        }
+    }
+
     pub fn random_unit_vector() -> Vector3 {
         Self::normalize(&Self::random_in_unit_sphere())
     }

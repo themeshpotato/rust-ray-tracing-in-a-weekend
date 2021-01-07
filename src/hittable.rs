@@ -1,5 +1,6 @@
 use crate::math::*;
 use crate::ray::*;
+use crate::material::*;
 
 #[derive(Default)]
 pub struct HitRecord {
@@ -22,7 +23,7 @@ impl HitRecord {
 }
 
 pub enum Hittable {
-    Sphere(Point3, f64)
+    Sphere { mat_handle: MaterialHandle, center: Point3, radius: f64 }
 }
 
 pub fn hit_hittables(hittables: &Vec<Hittable>, ray: &Ray, t_min: f64, t_max: f64) -> Option<HitRecord> {
@@ -42,7 +43,7 @@ pub fn hit_hittables(hittables: &Vec<Hittable>, ray: &Ray, t_min: f64, t_max: f6
 impl Hittable {
     pub fn hit(&self, ray: &Ray, t_min: f64, t_max: f64) -> Option<HitRecord> {
         match self {
-            Hittable::Sphere(center, radius) => {
+            Hittable::Sphere { mat_handle, center, radius } => {
                 Self::sphere_hit(&center, *radius, ray, t_min, t_max)
             }
         }

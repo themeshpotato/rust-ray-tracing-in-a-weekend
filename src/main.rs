@@ -2,11 +2,14 @@ mod math;
 mod ray;
 mod camera;
 mod hittable;
+mod material;
 
 use math::*;
 use ray::*;
 use camera::*;
 use hittable::*;
+use material::*;
+
 use std::io::{self, Write};
 
 fn hit_sphere(center: &Point3, radius: f64, ray: &Ray) -> f64 {
@@ -52,8 +55,8 @@ fn main() {
     // World
 
     let mut world: Vec<Hittable> = Vec::new();
-    world.push(Hittable::Sphere(Point3::new(0.0, 0.0, -1.0), 0.5));
-    world.push(Hittable::Sphere(Point3::new(0.0, -100.5, -1.0), 100.0));
+    world.push(Hittable::Sphere { mat_handle: MaterialHandle(0), center: Point3::new(0.0, 0.0, -1.0), radius: 0.5 });
+    world.push(Hittable::Sphere { mat_handle: MaterialHandle(0), center: Point3::new(0.0, -100.5, -1.0), radius: 100.0 });
 
     // Camera
     let camera = Camera::new(); 

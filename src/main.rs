@@ -93,20 +93,39 @@ fn random_scene() -> World {
         }
     }
 
+    let material1 = world.register_material(Material::Dielectric { ir: 1.5 });
+    world.hittables.push(Hittable::Sphere { mat_handle: material1, center: Point3::new(0.0, 1.0, 0.0), radius: 1.0 });
+
+    let material2 = world.register_material(Material::Lambertian { albedo: Color::new(0.4, 0.2, 0.1) });
+    world.hittables.push(Hittable::Sphere { mat_handle: material2, center: Point3::new(-4.0, 1.0, 0.0), radius: 1.0 });
+
+    let material3 = world.register_material(Material::Metal { albedo: Color::new(0.7, 0.6, 0.5), fuzz: 0.0 });
+    world.hittables.push(Hittable::Sphere { mat_handle: material3, center: Point3::new(4.0, 1.0, 0.0), radius: 1.0 });
+
     world
+}
+
+struct PixelChunk {
+    pub x: usize,
+    pub y: usize
 }
 
 fn main() {
     // Image
-    let aspect_ratio: f64 = 3.0 / 2.0;
-    let image_width: usize = 1200;
-    let image_height = (image_width as f64 / aspect_ratio) as usize;
-    let samples_per_pixel = 500;
-    let max_depth = 50;
+    const aspect_ratio: f64 = 3.0 / 2.0;
+    const image_width: usize = 1200;
+    const image_height: usize = (image_width as f64 / aspect_ratio) as usize;
+
+    let thread_count = 10;
+    let samples_per_pixel = 50;
+    let max_depth = 5;
+
+    //let samples_per_pixel = 500;
+    //let max_depth = 50;
 
     // World
 
-    let mut world = random_scene();
+    let mut world = Arc::new(random_scene());
 
     // Camera
     let look_from = Point3::new(13.0, 2.0, 3.0);
@@ -115,27 +134,93 @@ fn main() {
     let dist_to_focus = 10.0; 
     let aperture = 0.1;
 
-    let camera = Camera::new(&look_from, &look_at, &vup, 20.0, aspect_ratio, aperture, dist_to_focus);
+    let camera = Arc::new(Camera::new(&look_from, &look_at, &vup, 20.0, aspect_ratio, aperture, dist_to_focus));
 
     // Render
     println!("P3\n{} {}\n255", image_width, image_height);
 
-    for j in (0..=image_height - 1).rev() {
-        eprintln!("Scanlines remaining: {}", j);
-        for i in 0..image_width {
-            let mut pixel_color = Color::new(0.0, 0.0, 0.0);
-            for s in 0..samples_per_pixel {
-                let u = (i as f64 + random_double()) / (image_width as f64 - 1.0);
-                let v = (j as f64 + random_double()) / (image_height as f64 - 1.0);
+    use std::thread;
+    use std::sync::{Arc, Mutex};
 
-                let r = camera.get_ray(u, v);
+    let mut pixel_colors = Arc::new(Mutex::new(vec![vec![Color::new(0.0, 0.0, 0.0); image_height]; image_width]));
+    let mut remaining_pixel_list: Vec<PixelChunk> = Vec::new();
 
-                pixel_color += ray_color(&r, &world.hittables, max_depth, &world.materials);
-            }
-
-            pixel_color.write_color(samples_per_pixel);
+    for x in 0..image_width {
+        for y in 0..image_height {
+            remaining_pixel_list.push(PixelChunk { x, y });
         }
     }
+
+    let mut thread_handles = Vec::new();
+    let mut remaining_pixels = Arc::new(Mutex::new(remaining_pixel_list));
+    let mut threads_running = Arc::new(Mutex::new(thread_count));
+    let pixels_to_process_count = image_width * image_height;
+    let mut pixel_count = Arc::new(Mutex::new(pixels_to_process_count));
+
+    eprintln!(
+        "Rendering {}x{} ({} pixels) image with {} samples per pixel and a max depth of {}, using {} threads", 
+        image_width,
+        image_height,
+        image_width * image_height,
+        samples_per_pixel,
+        max_depth,
+        thread_count
+        );
+
+    use std::time::{Duration, Instant};
     
-    eprintln!("Done");
+    let now = Instant::now();
+
+    for i in 0..thread_count {
+        let pixel_colors = Arc::clone(&pixel_colors);
+        let world = Arc::clone(&world);
+        let camera = Arc::clone(&camera);
+        let remaining_pixels = Arc::clone(&remaining_pixels);
+        let pixel_count = Arc::clone(&pixel_count);
+
+        let handle = thread::spawn(move || {
+            loop {
+                let mut remaining_pixels = remaining_pixels.lock().unwrap();
+
+                if let Some(pixel) = remaining_pixels.pop() {
+                    drop(remaining_pixels);
+
+                    let mut pixel_color = Color::new(0.0, 0.0, 0.0);
+                    for s in 0..samples_per_pixel {
+                        let u = (pixel.x as f64 + random_double()) / (image_width as f64 - 1.0);
+                        let v = (pixel.y as f64 + random_double()) / (image_height as f64 - 1.0);
+
+                        let r = camera.get_ray(u, v);
+
+                        pixel_color += ray_color(&r, &world.hittables, max_depth, &world.materials);
+                    }
+
+                    let mut pixels = pixel_colors.lock().unwrap();
+                    pixels[pixel.x][pixel.y] = pixel_color; 
+
+                    let mut pixel_count = pixel_count.lock().unwrap();
+                    *pixel_count -= 1;
+
+                    //eprint!("\rProgress: {:.2}%", 100.0 - (*pixel_count as f64 / pixels_to_process_count as f64) * 100.0);
+                } else {
+                    break;
+                }
+            }
+        });
+
+        thread_handles.push(handle);
+    }
+
+    for handle in thread_handles {
+        handle.join().unwrap();
+    }
+
+    for j in (0..=image_height - 1).rev() {
+        for i in 0..image_width {
+            let colors = pixel_colors.lock().unwrap();
+            colors[i][j].write_color(samples_per_pixel);
+        }
+    }
+
+    eprintln!("Rendering finished in {} seconds", now.elapsed().as_secs());
 }

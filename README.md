@@ -1,4 +1,4 @@
-This is a multi-threaded Rust implementation of the very cool book series "Ray Tracing in One Weekend" by Peter Shirley
+A multi-threaded Rust implementation of the very cool book series "Ray Tracing in One Weekend" by Peter Shirley
 https://raytracing.github.io/books/RayTracingInOneWeekend.html
 
 Currently this is only the code for the first book, but I will be implementing the second book at some point.

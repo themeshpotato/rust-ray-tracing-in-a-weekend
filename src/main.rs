@@ -117,8 +117,8 @@ fn main() {
     const image_height: usize = (image_width as f64 / aspect_ratio) as usize;
 
     let thread_count = 10;
-    let samples_per_pixel = 50;
-    let max_depth = 5;
+    let samples_per_pixel = 500;
+    let max_depth = 50;
 
     //let samples_per_pixel = 500;
     //let max_depth = 50;
@@ -139,7 +139,7 @@ fn main() {
     // Render
     println!("P3\n{} {}\n255", image_width, image_height);
 
-    use std::thread;
+    use std::{time, thread};
     use std::sync::{Arc, Mutex};
 
     let mut pixel_colors = Arc::new(Mutex::new(vec![vec![Color::new(0.0, 0.0, 0.0); image_height]; image_width]));
@@ -200,8 +200,6 @@ fn main() {
 
                     let mut pixel_count = pixel_count.lock().unwrap();
                     *pixel_count -= 1;
-
-                    //eprint!("\rProgress: {:.2}%", 100.0 - (*pixel_count as f64 / pixels_to_process_count as f64) * 100.0);
                 } else {
                     break;
                 }
@@ -210,6 +208,30 @@ fn main() {
 
         thread_handles.push(handle);
     }
+        
+    let pixel_count = Arc::clone(&pixel_count);
+
+    let one_second = time::Duration::from_secs(1);
+
+    let handle = thread::spawn(move || {
+        loop {
+            let count = {
+                let pixel_count = pixel_count.lock().unwrap();
+                *pixel_count
+            };
+
+            eprint!("\rProgress: {:.2}%", 100.0 - (count as f64 / pixels_to_process_count as f64) * 100.0);
+
+            if count > 0 {
+                thread::sleep(one_second); // Sleep one second
+            } else {
+                break;
+            }
+        }
+    });
+
+    thread_handles.push(handle);
+
 
     for handle in thread_handles {
         handle.join().unwrap();

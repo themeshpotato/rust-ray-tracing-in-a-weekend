@@ -1,6 +1,7 @@
 use crate::math::*;
 use crate::ray::*;
 use crate::material::*;
+use crate::aabb::*;
 
 #[derive(Default)]
 pub struct HitRecord {
@@ -84,6 +85,32 @@ impl Hittable {
         rec.set_face_normal(ray, &outward_normal);
 
         Some(rec)
+    }
+
+    fn sphere_bounding_box(center: &Point3, radius: f64) -> Option<AABB> {
+        Some(
+            AABB::new(
+                *center - Vector3::new(radius, radius, radius),
+                *center + Vector3::new(radius, radius, radius)
+            )
+        )
+    }
+
+    fn moving_sphere_bounding_box(center_0: &Point3, center_1: &Point3, radius: f64, time_0: f64, time_1: f64) -> Option<AABB> {
+        let c0 = Self::get_center_at_time(center_0, center_1, time_0, time_1, time_0);
+        let c1 = Self::get_center_at_time(center_0, center_1, time_0, time_1, time_1);
+
+        let box0 = AABB::new(
+            c0 - Vector3::new(radius, radius, radius),
+            c0 + Vector3::new(radius, radius, radius)
+        );
+
+        let box1 = AABB::new(
+            c1 - Vector3::new(radius, radius, radius),
+            c1 + Vector3::new(radius, radius, radius)
+        );
+
+        Some(AABB::surrounding_box(&box0, &box1))
     }
 
     fn get_center_at_time(center_0: &Point3, center_1: &Point3, time_0: f64, time_1: f64, time: f64) -> Point3 {

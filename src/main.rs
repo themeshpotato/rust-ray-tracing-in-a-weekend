@@ -3,7 +3,9 @@ mod ray;
 mod camera;
 mod hittable;
 mod material;
+mod aabb;
 
+use aabb::*;
 use math::*;
 use ray::*;
 use camera::*;

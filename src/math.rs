@@ -28,6 +28,10 @@ impl Vector3 {
         }
     }
 
+    pub fn as_array(&self) -> [f64; 3] {
+        [self.x, self.y, self.z]
+    }
+
     pub fn random() -> Vector3 {
         Vector3 {
             x: random_double(),

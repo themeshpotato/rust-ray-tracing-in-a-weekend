@@ -79,7 +79,8 @@ fn random_scene() -> World {
                 if choose_mat  < 0.8 {
                     let albedo = Color::random();
                     let sphere_material = world.register_material(Material::Lambertian { albedo });
-                    world.hittables.push(Hittable::Sphere { mat_handle: sphere_material, center, radius: 0.2 });
+                    let center2 = center + Vector3::new(0.0, random_double_range(0.0, 0.5), 0.0);
+                    world.hittables.push(Hittable::MovingSphere { mat_handle: sphere_material, center_0: center, center_1: center2, time_0: 0.0, time_1: 1.0, radius: 0.2 });
                 } else if choose_mat < 0.95 {
                     let albedo = Color::random_range(0.5, 1.0); 
                     let fuzz = random_double_range(0.0, 0.5);
@@ -112,12 +113,12 @@ struct PixelChunk {
 
 fn main() {
     // Image
-    const aspect_ratio: f64 = 3.0 / 2.0;
-    const image_width: usize = 1200;
+    const aspect_ratio: f64 = 16.0 / 9.0; 
+    const image_width: usize = 400;
     const image_height: usize = (image_width as f64 / aspect_ratio) as usize;
 
     let thread_count = 10;
-    let samples_per_pixel = 500;
+    let samples_per_pixel = 100;
     let max_depth = 50;
 
     //let samples_per_pixel = 500;
@@ -134,7 +135,7 @@ fn main() {
     let dist_to_focus = 10.0; 
     let aperture = 0.1;
 
-    let camera = Arc::new(Camera::new(&look_from, &look_at, &vup, 20.0, aspect_ratio, aperture, dist_to_focus));
+    let camera = Arc::new(Camera::new(&look_from, &look_at, &vup, 20.0, aspect_ratio, aperture, dist_to_focus, 0.0, 1.0));
 
     // Render
     println!("P3\n{} {}\n255", image_width, image_height);

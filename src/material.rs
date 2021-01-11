@@ -19,7 +19,7 @@ impl Material {
 
     fn lambertian_scatter(albedo: &Color, ray: &Ray, rec: &HitRecord) -> Option<(Ray, Color)> {
         let mut scatter_direction = rec.normal + Vector3::random_unit_vector();
-        let scattered = Ray::new(rec.point, scatter_direction);
+        let scattered = Ray::with_time(rec.point, scatter_direction, ray.time);
 
         // Catch degenerate scatter_direction
         if scatter_direction.near_zero() {
@@ -32,7 +32,7 @@ impl Material {
     fn metal_scatter(albedo: &Color, fuzz: f64, ray: &Ray, rec: &HitRecord) -> Option<(Ray, Color)> {
         let reflected = Vector3::reflect(&Vector3::normalize(&ray.direction), &rec.normal);
         let with_fuzz = reflected + fuzz * Vector3::random_in_unit_sphere();
-        let scattered = Ray::new(rec.point, with_fuzz);
+        let scattered = Ray::with_time(rec.point, with_fuzz, ray.time);
         
         if Vector3::dot(&scattered.direction, &rec.normal) > 0.0 {
             Some((scattered, *albedo))
@@ -58,7 +58,7 @@ impl Material {
             }
         };
         
-        let scattered = Ray::new(rec.point, direction);
+        let scattered = Ray::with_time(rec.point, direction, ray.time);
 
         Some((scattered, attenuation))
     }

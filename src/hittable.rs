@@ -26,7 +26,8 @@ impl HitRecord {
 
 pub enum Hittable {
     Sphere { mat_handle: MaterialHandle, center: Point3, radius: f64 },
-    MovingSphere { mat_handle: MaterialHandle, center_0: Point3, center_1: Point3, time_0: f64, time_1: f64, radius: f64 }
+    MovingSphere { mat_handle: MaterialHandle, center_0: Point3, center_1: Point3, time_0: f64, time_1: f64, radius: f64 },
+    BvhNode { left_index: usize, right_index: usize, aabb_box: AABB }
 }
 
 pub fn hit_hittables(hittables: &Vec<Hittable>, ray: &Ray, t_min: f64, t_max: f64) -> Option<HitRecord> {
@@ -51,6 +52,9 @@ impl Hittable {
             },
             Hittable::MovingSphere { mat_handle, center_0, center_1, time_0, time_1, radius } => {
                 Self::sphere_hit(&Self::get_center_at_time(center_0, center_1, *time_0, *time_1, ray.time), *radius, ray, t_min, t_max, *mat_handle)
+            },
+            Hittable::BvhNode { left_index, right_index, aabb_box } => {
+                None
             }
         }
     }

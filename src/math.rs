@@ -269,6 +269,10 @@ pub fn random_double_range(min: f64, max: f64) -> f64 {
    rng.gen_range(min..=max)
 }
 
+pub fn random_int_range(min: i32, max: i32) -> i32 {
+    random_double_range(min as f64, (max + 1) as f64) as i32
+}
+
 pub fn clamp(x: f64, min: f64, max: f64) -> f64 {
     if x < min { min }
     else if x > max { max }

@@ -1,6 +1,8 @@
 use crate::math::*;
 use crate::ray::*;
+use crate::hittable::*;
 
+#[derive(Copy, Clone)]
 pub struct AABB {
     pub minimum: Point3,
     pub maximum: Point3
@@ -28,6 +30,22 @@ impl AABB {
         );
 
         AABB::new(small, big)
+    }
+
+    fn box_compare(a: &Hittable, b: &Hittable, axis: i32) -> std::cmp::Ordering {
+        std::cmp::Ordering::Greater
+    }
+
+    pub fn box_x_compare(a: &Hittable, b: &Hittable) -> std::cmp::Ordering {
+        Self::box_compare(a, b, 0)
+    }
+
+    pub fn box_y_compare(a: &Hittable, b: &Hittable) -> std::cmp::Ordering {
+        Self::box_compare(a, b, 1)
+    }
+
+    pub fn box_z_compare(a: &Hittable, b: &Hittable) -> std::cmp::Ordering {
+        Self::box_compare(a, b, 2)
     }
 
     fn min_max(a: f64, b: f64, min: &mut f64, max: &mut f64) -> bool {

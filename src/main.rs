@@ -4,6 +4,7 @@ mod camera;
 mod hittable;
 mod material;
 mod aabb;
+mod texture;
 
 use aabb::*;
 use math::*;
@@ -11,6 +12,7 @@ use ray::*;
 use camera::*;
 use hittable::*;
 use material::*;
+use texture::*;
 
 use std::io::{self, Write};
 
@@ -68,7 +70,7 @@ fn random_scene() -> World {
         hittables: Vec::new()
     };
 
-    let ground_material = world.register_material(Material::Lambertian { albedo: Color::new(0.5, 0.5, 0.5) });
+    let ground_material = world.register_material(Material::Lambertian { albedo: Texture::Checker(Color::new(0.2, 0.5, 0.5), Color::new(0.9, 0.9, 0.9)) });
     world.hittables.push(Hittable::Sphere { mat_handle: ground_material, center: Point3::new(0.0, -1000.0, 0.0), radius: 1000.0 });
 
     for a in -11..11 {
@@ -80,7 +82,7 @@ fn random_scene() -> World {
                 
                 if choose_mat  < 0.8 {
                     let albedo = Color::random();
-                    let sphere_material = world.register_material(Material::Lambertian { albedo });
+                    let sphere_material = world.register_material(Material::Lambertian { albedo: Texture::SolidColor(albedo) });
                     let center2 = center + Vector3::new(0.0, random_double_range(0.0, 0.5), 0.0);
                     world.hittables.push(Hittable::MovingSphere { mat_handle: sphere_material, center_0: center, center_1: center2, time_0: 0.0, time_1: 1.0, radius: 0.2 });
                 } else if choose_mat < 0.95 {
@@ -99,7 +101,7 @@ fn random_scene() -> World {
     let material1 = world.register_material(Material::Dielectric { ir: 1.5 });
     world.hittables.push(Hittable::Sphere { mat_handle: material1, center: Point3::new(0.0, 1.0, 0.0), radius: 1.0 });
 
-    let material2 = world.register_material(Material::Lambertian { albedo: Color::new(0.4, 0.2, 0.1) });
+    let material2 = world.register_material(Material::Lambertian { albedo: Texture::SolidColor(Color::new(0.4, 0.2, 0.1)) });
     world.hittables.push(Hittable::Sphere { mat_handle: material2, center: Point3::new(-4.0, 1.0, 0.0), radius: 1.0 });
 
     let material3 = world.register_material(Material::Metal { albedo: Color::new(0.7, 0.6, 0.5), fuzz: 0.0 });

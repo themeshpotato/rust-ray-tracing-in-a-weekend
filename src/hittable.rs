@@ -9,7 +9,9 @@ pub struct HitRecord {
     pub normal: Vector3,
     pub t: f64,
     pub front_face: bool,
-    pub mat_handle: MaterialHandle
+    pub mat_handle: MaterialHandle,
+    pub u: f64,
+    pub v: f64
 }
 
 impl HitRecord {
@@ -86,7 +88,11 @@ impl Hittable {
         };
 
         let object_span = end - start;
-if object_span == 1 { left = start; right = start; } else if object_span == 2 { if comparator(&list[indices_cpy[start]], &list[indices_cpy[start + 1]]) == std::cmp::Ordering::Greater {
+        if object_span == 1 { 
+            left = start;
+            right = start; 
+        } else if object_span == 2 {
+            if comparator(&list[indices_cpy[start]], &list[indices_cpy[start + 1]]) == std::cmp::Ordering::Greater {
                 left = start;
                 right = start + 1;
             } else {
@@ -157,6 +163,10 @@ if object_span == 1 { left = start; right = start; } else if object_span == 2 { 
         rec.point = ray.at(rec.t);
         let outward_normal = (rec.point - *center) / radius;
         rec.set_face_normal(ray, &outward_normal);
+
+        let (u, v) = sphere_uv(&outward_normal);
+        rec.u = u;
+        rec.v = v;
 
         Some(rec)
     }

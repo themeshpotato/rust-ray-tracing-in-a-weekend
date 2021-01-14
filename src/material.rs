@@ -1,9 +1,10 @@
 use crate::math::*;
 use crate::ray::*;
 use crate::hittable::*;
+use crate::texture::*;
 
 pub enum Material {
-    Lambertian { albedo: Color },
+    Lambertian { albedo: Texture },
     Metal { albedo: Color, fuzz: f64 },
     Dielectric { ir: f64 }
 }
@@ -17,7 +18,7 @@ impl Material {
         }
     }
 
-    fn lambertian_scatter(albedo: &Color, ray: &Ray, rec: &HitRecord) -> Option<(Ray, Color)> {
+    fn lambertian_scatter(albedo: &Texture, ray: &Ray, rec: &HitRecord) -> Option<(Ray, Color)> {
         let mut scatter_direction = rec.normal + Vector3::random_unit_vector();
         let scattered = Ray::with_time(rec.point, scatter_direction, ray.time);
 
@@ -25,8 +26,10 @@ impl Material {
         if scatter_direction.near_zero() {
             scatter_direction = rec.normal;
         }
+
+        let attenuation = albedo.get_color_value(rec.u, rec.v, &rec.point);
         
-        Some((scattered, *albedo))
+        Some((scattered, attenuation))
     }
     
     fn metal_scatter(albedo: &Color, fuzz: f64, ray: &Ray, rec: &HitRecord) -> Option<(Ray, Color)> {

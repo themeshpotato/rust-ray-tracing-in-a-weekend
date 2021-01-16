@@ -1,8 +1,10 @@
 use crate::math::*;
+use crate::perlin::Perlin;
 
 pub enum Texture {
     SolidColor(Color),
-    Checker(Color, Color)
+    Checker(Color, Color),
+    Noise(Perlin)
 }
 
 pub trait ColorValue {
@@ -22,6 +24,9 @@ impl ColorValue for Texture {
                 } else {
                     *even
                 }
+            },
+            Texture::Noise(perlin) => {
+                Color::new(1.0, 1.0, 1.0) * perlin.noise(p)
             }
         }
     }

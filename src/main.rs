@@ -5,6 +5,7 @@ mod hittable;
 mod material;
 mod aabb;
 mod texture;
+mod perlin;
 
 use aabb::*;
 use math::*;
@@ -13,6 +14,7 @@ use camera::*;
 use hittable::*;
 use material::*;
 use texture::*;
+use perlin::*;
 
 use std::io::{self, Write};
 
@@ -73,6 +75,19 @@ fn two_spheres_scene() -> World {
     let ground_material = world.register_material(Material::Lambertian { albedo: Texture::Checker(Color::new(0.2, 0.3, 0.1), Color::new(0.9, 0.9, 0.9)) });
     world.hittables.push(Hittable::Sphere { mat_handle: ground_material, center: Point3::new(0.0, -10.0, 0.0), radius: 10.0 });
     world.hittables.push(Hittable::Sphere { mat_handle: ground_material, center: Point3::new(0.0, 10.0, 0.0), radius: 10.0 });
+
+    world
+}
+
+fn two_perlin_spheres_scene() -> World {
+    let mut world = World {
+        materials: Vec::new(),
+        hittables: Vec::new()
+    };
+
+    let ground_material = world.register_material(Material::Lambertian { albedo: Texture::Noise(Perlin::new()) });
+    world.hittables.push(Hittable::Sphere { mat_handle: ground_material, center: Point3::new(0.0, -1000.0, 0.0), radius: 1000.0 });
+    world.hittables.push(Hittable::Sphere { mat_handle: ground_material, center: Point3::new(0.0, 2.0, 0.0), radius: 2.0 });
 
     world
 }
@@ -140,7 +155,7 @@ fn main() {
     let vup = Vector3::new(0.0, 1.0, 0.0);
     let dist_to_focus = 10.0; 
 
-    let (world, look_from, look_at, vfov, aperture) = match 1 {
+    let (world, look_from, look_at, vfov, aperture) = match 2 {
 
         0 => {
             let mut world = Arc::new(random_scene());
@@ -161,7 +176,17 @@ fn main() {
             let aperture = 0.1;
 
             (world, look_from, look_at, 20.0, aperture)
-        }
+        },
+        2 => {
+            let mut world = Arc::new(two_perlin_spheres_scene());
+
+            // Camera
+            let look_from = Point3::new(13.0, 2.0, 3.0);
+            let look_at = Point3::new(0.0, 0.0, 0.0);
+            let aperture = 0.1;
+
+            (world, look_from, look_at, 20.0, aperture)
+        },
         _ => {
             panic!("Unsupported scene selected")
         }

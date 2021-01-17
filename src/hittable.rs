@@ -33,7 +33,10 @@ pub enum Hittable {
     BvhNode { list: Vec<usize>, left_index: usize, right_index: usize, aabb_box: AABB },
     XYRect { mat_handle: MaterialHandle, x0: f64, x1: f64, y0: f64, y1: f64, k: f64 },
     XZRect { mat_handle: MaterialHandle, x0: f64, x1: f64, z0: f64, z1: f64, k: f64 },
-    YZRect { mat_handle: MaterialHandle, y0: f64, y1: f64, z0: f64, z1: f64, k: f64 }
+    YZRect { mat_handle: MaterialHandle, y0: f64, y1: f64, z0: f64, z1: f64, k: f64 },
+    Box { mat_handle: MaterialHandle, min: Point3, max: Point3, sides: Vec<Hittable> },
+    Translate { offset: Vector3, ptr: Box<Hittable> },
+    RotateY { sin_theta: f64, cos_theta: f64, has_box: bool, bbox: AABB, ptr: Box<Hittable> }
 }
 
 pub fn hit_hittables(hittables: &Vec<Hittable>, ray: &Ray, t_min: f64, t_max: f64) -> Option<HitRecord> {
@@ -114,13 +117,81 @@ impl Hittable {
             left = list.len() - 2;
             right = list.len() - 1;
         }
-
         
         Hittable::BvhNode {
             list: indices_cpy,
             left_index: left,
             right_index: right,
             aabb_box: AABB::new(Point3::new(0.0, 0.0, 0.0), Point3::new(0.0, 0.0, 0.0)),
+        }
+    }
+
+    pub fn new_box(min: Point3, max: Point3, mat_handle: MaterialHandle) -> Hittable {
+        let mut sides = Vec::new();
+
+        sides.push(Hittable::XYRect { mat_handle, x0: min.x, x1: max.x, y0: min.y, y1: max.y, k: max.z });
+        sides.push(Hittable::XYRect { mat_handle, x0: min.x, x1: max.x, y0: min.y, y1: max.y, k: min.z });
+
+        sides.push(Hittable::XZRect { mat_handle, x0: min.x, x1: max.x, z0: min.z, z1: max.z, k: max.y });
+        sides.push(Hittable::XZRect { mat_handle, x0: min.x, x1: max.x, z0: min.z, z1: max.z, k: min.y });
+
+        sides.push(Hittable::YZRect { mat_handle, y0: min.y, y1: max.y, z0: min.z, z1: max.z, k: max.x });
+        sides.push(Hittable::YZRect { mat_handle, y0: min.y, y1: max.y, z0: min.z, z1: max.z, k: min.x });
+
+        Hittable::Box { mat_handle, min, max, sides }
+    }
+
+    pub fn new_rotate_y(angle: f64, hittable: Hittable) -> Hittable {
+        let radians = degrees_to_radians(angle);
+        let sin_theta = f64::sin(radians);
+        let cos_theta = f64::cos(radians);
+
+        let has_box;
+        let aabb;
+        
+        if let Some(bbox) = hittable.bounding_box(0.0, 1.0) {
+            has_box = true;
+            aabb = bbox;
+        } else {
+            has_box = false;
+            aabb = AABB::new(Point3::new(0.0, 0.0, 0.0,), Point3::new(0.0, 0.0, 0.0));
+        }
+
+        let mut min = [f64::INFINITY; 3];
+        let mut max = [-f64::INFINITY; 3];
+
+        for i in 0..2 {
+            for j in 0..2 {
+                for k in 0..2 {
+                    let i = i as f64;
+                    let j = j as f64;
+                    let k = k as f64;
+
+                    let x = i * aabb.maximum.x + (1.0 - i) * aabb.minimum.x;
+                    let y = j * aabb.maximum.y + (1.0 - j) * aabb.minimum.y;
+                    let z = k * aabb.maximum.z + (1.0 - k) * aabb.minimum.z;
+
+                    let newx = cos_theta * x + sin_theta * z;
+                    let newz = -sin_theta * x + cos_theta * z;
+
+                    let tester = [newx, y, newz];
+
+                    for c in 0..3 {
+                        min[c] = f64::min(min[c], tester[c]);
+                        max[c] = f64::max(max[c], tester[c]);
+                    }
+                }
+            }
+        }
+
+        let aabb = AABB::new(Point3::new(min[0], min[1], min[2]), Point3::new(max[0], max[1], max[2]));
+
+        Hittable::RotateY {
+            sin_theta,
+            cos_theta,
+            has_box,
+            bbox: aabb,
+            ptr: Box::new(hittable)
         }
     }
 
@@ -143,6 +214,25 @@ impl Hittable {
             },
             Hittable::YZRect { mat_handle, y0, y1, z0, z1, k } => {
                 Self::yz_rect_hit(*y0, *y1, *z0, *z1, *k, ray, t_min, t_max, *mat_handle)
+            },
+            Hittable::Box { mat_handle, min, max, sides } => {
+                hit_hittables(sides, ray, t_min, t_max)
+            },
+            Hittable::Translate { offset, ptr } => {
+                let moved_ray = Ray::with_time(ray.origin - *offset, ray.direction, ray.time);
+
+                if let Some(mut rec) = ptr.hit(&moved_ray, t_min, t_max) {
+                    rec.point += *offset;
+                    let normal = rec.normal;
+                    rec.set_face_normal(&moved_ray, &normal);
+
+                    Some(rec)
+                } else {
+                    None
+                }
+            },
+            Hittable::RotateY { sin_theta, cos_theta, has_box: _, bbox: _, ptr } => {
+                Self::hit_rotate_y(*sin_theta, *cos_theta, ptr, ray, t_min, t_max)
             }
         }
     }
@@ -209,7 +299,7 @@ impl Hittable {
         let t = (k - ray.origin.z) / ray.direction.z;
         
         if t < t_min || t > t_max {
-            return None
+            return None;
         }
 
         let x = ray.origin.x + t * ray.direction.x;
@@ -283,9 +373,39 @@ impl Hittable {
         Some(rec)
     }
 
+    fn hit_rotate_y(sin_theta: f64, cos_theta: f64, ptr: &Box<Hittable>, ray: &Ray, t_min: f64, t_max: f64) -> Option<HitRecord> {
+        let mut origin = ray.origin;
+        let mut direction = ray.direction;
+
+        origin.x = cos_theta * ray.origin.x - sin_theta * ray.origin.z;
+        origin.z = sin_theta * ray.origin.x + cos_theta * ray.origin.z;
+
+        direction.x = cos_theta * ray.direction.x - sin_theta * ray.direction.z;
+        direction.z = sin_theta * ray.direction.x + cos_theta * ray.direction.z;
+
+        let rotated_ray = Ray::with_time(origin, direction, ray.time);
+
+        if let Some(mut rec) = ptr.hit(&rotated_ray, t_min, t_max) {
+            let mut p = rec.point;
+            let mut normal = rec.normal;
+
+            p.x = cos_theta * rec.point.x + sin_theta * rec.point.z;
+            p.z = -sin_theta * rec.point.x + cos_theta * rec.point.z;
+
+            normal.x = cos_theta * rec.normal.x + sin_theta * rec.normal.z;
+            normal.z = -sin_theta * rec.normal.x + cos_theta * rec.normal.z;
+
+            rec.point = p;
+            rec.set_face_normal(&rotated_ray, &normal);
+
+            Some(rec)
+        } else {
+            None
+        }
+    }
 
     #[allow(dead_code)]
-    pub fn bounding_box(&self, _time_0: f64, _time_1: f64) -> Option<AABB> {
+    pub fn bounding_box(&self, time_0: f64, time_1: f64) -> Option<AABB> {
         match self {
             Hittable::Sphere { mat_handle: _, center, radius } => {
                 Self::sphere_bounding_box(&center, *radius)
@@ -313,6 +433,26 @@ impl Hittable {
                     Point3::new(*k - 0.0001, *y0, *z0),
                     Point3::new(*k + 0.0001, *y1, *z1)
                 ))
+            },
+            Hittable::Box { mat_handle, min, max, sides } => {
+                Some(AABB::new(*min, *max))
+            },
+            Hittable::Translate { offset, ptr } => {
+                if let Some(aabb) = ptr.bounding_box(time_0, time_1) {
+                    Some(AABB::new(
+                        aabb.minimum + *offset,
+                        aabb.maximum + *offset
+                    ))
+                } else {
+                    None
+                }
+            },
+            Hittable::RotateY { sin_theta: _, cos_theta: _, has_box, bbox, ptr: _ } => {
+                if *has_box {
+                    Some(*bbox)
+                } else {
+                    None
+                }
             }
         }
     }

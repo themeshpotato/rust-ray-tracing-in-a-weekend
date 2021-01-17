@@ -30,7 +30,10 @@ impl HitRecord {
 pub enum Hittable {
     Sphere { mat_handle: MaterialHandle, center: Point3, radius: f64 },
     MovingSphere { mat_handle: MaterialHandle, center_0: Point3, center_1: Point3, time_0: f64, time_1: f64, radius: f64 },
-    BvhNode { list: Vec<usize>, left_index: usize, right_index: usize, aabb_box: AABB }
+    BvhNode { list: Vec<usize>, left_index: usize, right_index: usize, aabb_box: AABB },
+    XYRect { mat_handle: MaterialHandle, x0: f64, x1: f64, y0: f64, y1: f64, k: f64 },
+    XZRect { mat_handle: MaterialHandle, x0: f64, x1: f64, z0: f64, z1: f64, k: f64 },
+    YZRect { mat_handle: MaterialHandle, y0: f64, y1: f64, z0: f64, z1: f64, k: f64 }
 }
 
 pub fn hit_hittables(hittables: &Vec<Hittable>, ray: &Ray, t_min: f64, t_max: f64) -> Option<HitRecord> {
@@ -131,6 +134,15 @@ impl Hittable {
             },
             Hittable::BvhNode { list: _, left_index: _, right_index: _, aabb_box: _ } => {
                 None
+            },
+            Hittable::XYRect { mat_handle, x0, x1, y0, y1, k } => {
+                Self::xy_rect_hit(*x0, *x1, *y0, *y1, *k, ray, t_min, t_max, *mat_handle)
+            },
+            Hittable::XZRect { mat_handle, x0, x1, z0, z1, k } => {
+                Self::xz_rect_hit(*x0, *x1, *z0, *z1, *k, ray, t_min, t_max, *mat_handle)
+            },
+            Hittable::YZRect { mat_handle, y0, y1, z0, z1, k } => {
+                Self::yz_rect_hit(*y0, *y1, *z0, *z1, *k, ray, t_min, t_max, *mat_handle)
             }
         }
     }
@@ -145,7 +157,7 @@ impl Hittable {
              return None;
         } 
 
-        let sqrtd = discriminant.sqrt();
+        let sqrtd = f64::sqrt(discriminant);
         
         // Find the nearest root that lies in the acceptable range
         let mut root = (-half_b - sqrtd) / a;
@@ -193,6 +205,85 @@ impl Hittable {
         }
     }
 
+    fn xy_rect_hit(x0: f64, x1: f64, y0: f64, y1: f64, k: f64, ray: &Ray, t_min: f64, t_max: f64, mat_handle: MaterialHandle) -> Option<HitRecord> {
+        let t = (k - ray.origin.z) / ray.direction.z;
+        
+        if t < t_min || t > t_max {
+            return None
+        }
+
+        let x = ray.origin.x + t * ray.direction.x;
+        let y = ray.origin.y + t * ray.direction.y;
+
+        if x < x0 || x > x1 || y < y0 || y > y1 {
+            return None;
+        }
+
+        let mut rec = HitRecord::new();
+        rec.u = (x - x0) / (x1 - x0);
+        rec.v = (y - y0) / (y1 - y0);
+        rec.t = t;
+        let outward_normal = Vector3::new(0.0, 0.0, 1.0);
+        rec.set_face_normal(ray, &outward_normal);
+        rec.mat_handle = mat_handle;
+        rec.point = ray.at(t);
+
+        Some(rec)
+    }
+
+    fn xz_rect_hit(x0: f64, x1: f64, z0: f64, z1: f64, k: f64, ray: &Ray, t_min: f64, t_max: f64, mat_handle: MaterialHandle) -> Option<HitRecord> {
+        let t = (k - ray.origin.y) / ray.direction.y;
+
+        if t < t_min || t > t_max {
+            return None
+        }
+
+        let x = ray.origin.x + t * ray.direction.x;
+        let z = ray.origin.z + t * ray.direction.z;
+
+        if x < x0 || x > x1 || z < z0 || z > z1 {
+            return None;
+        }
+
+        let mut rec = HitRecord::new();
+        rec.u = (x - x0) / (x1 - x0);
+        rec.v = (z - z0) / (z1 - z0);
+        rec.t = t;
+        let outward_normal = Vector3::new(0.0, 1.0, 0.0);
+        rec.set_face_normal(ray, &outward_normal);
+        rec.mat_handle = mat_handle;
+        rec.point = ray.at(t);
+
+        Some(rec)
+    }
+
+    fn yz_rect_hit(y0: f64, y1: f64, z0: f64, z1: f64, k: f64, ray: &Ray, t_min: f64, t_max: f64, mat_handle: MaterialHandle) -> Option<HitRecord> {
+        let t = (k - ray.origin.x) / ray.direction.x;
+
+        if t < t_min || t > t_max {
+            return None
+        }
+
+        let y = ray.origin.y + t * ray.direction.y;
+        let z = ray.origin.z + t * ray.direction.z;
+
+        if y < y0 || y > y1 || z < z0 || z > z1 {
+            return None;
+        }
+
+        let mut rec = HitRecord::new();
+        rec.u = (y - y0) / (y1 - y0);
+        rec.v = (z - z0) / (z1 - z0);
+        rec.t = t;
+        let outward_normal = Vector3::new(1.0, 0.0, 0.0);
+        rec.set_face_normal(ray, &outward_normal);
+        rec.mat_handle = mat_handle;
+        rec.point = ray.at(t);
+
+        Some(rec)
+    }
+
+
     #[allow(dead_code)]
     pub fn bounding_box(&self, _time_0: f64, _time_1: f64) -> Option<AABB> {
         match self {
@@ -204,6 +295,24 @@ impl Hittable {
             },
             Hittable::BvhNode { list: _, left_index: _, right_index: _, aabb_box } => {
                 Some(*aabb_box)
+            },
+            Hittable::XYRect { mat_handle, x0, x1, y0, y1, k } => {
+                Some(AABB::new(
+                    Point3::new(*x0, *y0, *k - 0.0001),
+                    Point3::new(*x1, *y1, *k + 0.0001)
+                ))
+            },
+            Hittable::XZRect { mat_handle, x0, x1, z0, z1, k } => {
+                Some(AABB::new(
+                    Point3::new(*x0, *k - 0.0001, *z0),
+                    Point3::new(*x1, *k + 0.0001, *z1)
+                ))
+            },
+            Hittable::YZRect { mat_handle, y0, y1, z0, z1, k } => {
+                Some(AABB::new(
+                    Point3::new(*k - 0.0001, *y0, *z0),
+                    Point3::new(*k + 0.0001, *y1, *z1)
+                ))
             }
         }
     }

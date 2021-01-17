@@ -16,7 +16,7 @@ use material::*;
 use texture::*;
 use perlin::*;
 
-fn ray_color(ray: &Ray, hittables: &Vec<Hittable>, depth: i32, materials: &Vec<Material>) -> Color {
+fn ray_color(ray: &Ray, background_color: &Color, hittables: &Vec<Hittable>, depth: i32, materials: &Vec<Material>) -> Color {
     // If we've exceeded the ray bounce limit, no more light is gathered
     if depth <= 0 {
         return Color::new(0.0, 0.0, 0.0);
@@ -24,18 +24,17 @@ fn ray_color(ray: &Ray, hittables: &Vec<Hittable>, depth: i32, materials: &Vec<M
 
     if let Some(rec) = hit_hittables(hittables, ray, 0.001, INFINITY) {
         let material = &materials[rec.mat_handle.0 - 1];
+        
+        let emitted = material.emitted(rec.u, rec.v, &rec.point);
 
         if let Some((scattered, attenuation)) = material.scatter(ray, &rec) {
-            return attenuation * ray_color(&scattered, hittables, depth - 1, materials);
+            return emitted + attenuation * ray_color(&scattered, background_color, hittables, depth - 1, materials);
         } else {
-            return Color::new(0.0, 0.0, 0.0);
+            return emitted;
         }
-    }
+    } 
 
-    let normalized_dir = Vector3::normalize(&ray.direction);
-    let t = 0.5 * (normalized_dir.y + 1.0);
-
-    (1.0 - t) * Color::new(1.0, 1.0, 1.0) + t * Color::new(0.5, 0.7, 1.0)
+    *background_color
 }
 
 struct World {
@@ -86,6 +85,43 @@ fn earth_scene() -> World {
     let earth_material = world.register_material(Material::Lambertian { albedo: earth_texture });
     world.hittables.push(Hittable::Sphere { mat_handle: earth_material, center: Point3::new(0.0, 0.0, 0.0), radius: 2.0 });
     
+    world
+}
+
+fn simple_light_scene() -> World {
+    let mut world = World {
+        materials: Vec::new(),
+        hittables: Vec::new()
+    };
+
+    let ground_material = world.register_material(Material::Lambertian { albedo: Texture::Noise(Perlin::new(), 4.0) });
+    world.hittables.push(Hittable::Sphere { mat_handle: ground_material, center: Point3::new(0.0, -1000.0, 0.0), radius: 1000.0 });
+    world.hittables.push(Hittable::Sphere { mat_handle: ground_material, center: Point3::new(0.0, 2.0, 0.0), radius: 2.0 });
+
+    let diff_light = world.register_material(Material::DiffuseLight { emit: Texture::SolidColor(Color::new(4.0, 4.0, 4.0)) });
+    world.hittables.push(Hittable::XYRect { mat_handle: diff_light, x0: 3.0, x1: 5.0, y0: 1.0, y1: 3.0, k: -2.0 });
+
+    world
+}
+
+fn cornell_box_scene() -> World {
+    let mut world = World {
+        materials: Vec::new(),
+        hittables: Vec::new()
+    };
+
+    let red = world.register_material(Material::Lambertian { albedo: Texture::SolidColor(Color::new(0.65, 0.05, 0.05)) });
+    let white = world.register_material(Material::Lambertian { albedo: Texture::SolidColor(Color::new(0.73, 0.73, 0.73)) });
+    let green = world.register_material(Material::Lambertian { albedo: Texture::SolidColor(Color::new(0.12, 0.45, 0.15)) });
+    let light = world.register_material(Material::DiffuseLight { emit: Texture::SolidColor(Color::new(15.0, 15.0, 15.0)) });
+
+    world.hittables.push(Hittable::YZRect { mat_handle: green, y0: 0.0, y1: 555.0, z0: 0.0, z1: 555.0, k: 555.0 });
+    world.hittables.push(Hittable::YZRect { mat_handle: red, y0: 0.0, y1: 555.0, z0: 0.0, z1: 555.0, k: 0.0 });
+    world.hittables.push(Hittable::XZRect { mat_handle: light, x0: 213.0, x1: 343.0, z0: 227.0, z1: 332.0, k: 554.0 });
+    world.hittables.push(Hittable::XZRect { mat_handle: white, x0: 0.0, x1: 555.0, z0: 0.0, z1: 555.0, k: 0.0 });
+    world.hittables.push(Hittable::XZRect { mat_handle: white, x0: 0.0, x1: 555.0, z0: 0.0, z1: 555.0, k: 555.0 });
+    world.hittables.push(Hittable::XYRect { mat_handle: white, x0: 0.0, x1: 555.0, y0: 0.0, y1: 555.0, k: 555.0 });
+
     world
 }
 
@@ -140,19 +176,25 @@ struct PixelChunk {
     pub y: usize
 }
 
+struct Scene {
+    pub aspect_ratio: f64,
+    pub image_width: usize,
+    pub samples_per_pixel: usize,
+    pub background: Color,
+    pub look_from: Point3,
+    pub look_at: Point3,
+    pub vfov: f64,
+    pub world: std::sync::Arc<World>
+}
+
 fn main() {
     // Image
-    const ASPECT_RATIO: f64 = 16.0 / 9.0; 
-    const IMAGE_WIDTH: usize = 400;
-    const IMAGE_HEIGHT: usize = (IMAGE_WIDTH as f64 / ASPECT_RATIO) as usize;
-
     let thread_count = 10;
-    let samples_per_pixel = 100;
     let max_depth = 50;
     let vup = Vector3::new(0.0, 1.0, 0.0);
     let dist_to_focus = 10.0; 
 
-    let (world, look_from, look_at, _vfov, aperture) = match 3 {
+    let scene = match 5 {
 
         0 => {
             let world = Arc::new(random_scene());
@@ -160,9 +202,17 @@ fn main() {
             // Camera
             let look_from = Point3::new(13.0, 2.0, 3.0);
             let look_at = Point3::new(0.0, 0.0, 0.0);
-            let aperture = 0.1;
 
-            (world, look_from, look_at, 20.0, aperture)
+            Scene {
+                aspect_ratio: 16.0 / 9.0,
+                image_width: 400,
+                samples_per_pixel: 100,
+                background: Color::new(0.7, 0.8, 1.0),
+                look_from,
+                look_at,
+                vfov: 20.0,
+                world
+            }
         },
         1 => {
             let world = Arc::new(two_spheres_scene());
@@ -170,9 +220,17 @@ fn main() {
             // Camera
             let look_from = Point3::new(13.0, 2.0, 3.0);
             let look_at = Point3::new(0.0, 0.0, 0.0);
-            let aperture = 0.1;
 
-            (world, look_from, look_at, 20.0, aperture)
+            Scene {
+                aspect_ratio: 16.0 / 9.0,
+                image_width: 400,
+                samples_per_pixel: 100,
+                background: Color::new(0.7, 0.8, 1.0),
+                look_from,
+                look_at,
+                vfov: 20.0,
+                world
+            }
         },
         2 => {
             let world = Arc::new(two_perlin_spheres_scene());
@@ -180,9 +238,17 @@ fn main() {
             // Camera
             let look_from = Point3::new(13.0, 2.0, 3.0);
             let look_at = Point3::new(0.0, 0.0, 0.0);
-            let aperture = 0.1;
 
-            (world, look_from, look_at, 20.0, aperture)
+            Scene {
+                aspect_ratio: 16.0 / 9.0,
+                image_width: 400,
+                samples_per_pixel: 100,
+                background: Color::new(0.7, 0.8, 1.0),
+                look_from,
+                look_at,
+                vfov: 20.0,
+                world
+            }
         },
         3 => {
             let world = Arc::new(earth_scene());
@@ -190,44 +256,90 @@ fn main() {
             // Camera
             let look_from = Point3::new(13.0, 2.0, 3.0);
             let look_at = Point3::new(0.0, 0.0, 0.0);
-            let aperture = 0.1;
 
-            (world, look_from, look_at, 20.0, aperture)
+            Scene {
+                aspect_ratio: 16.0 / 9.0,
+                image_width: 400,
+                samples_per_pixel: 100,
+                background: Color::new(0.7, 0.8, 1.0),
+                look_from,
+                look_at,
+                vfov: 20.0,
+                world
+            }
+        },
+        4 => {
+            let world = Arc::new(simple_light_scene());
+
+            // Camera
+            let look_from = Point3::new(26.0, 3.0, 6.0);
+            let look_at = Point3::new(0.0, 2.0, 0.0);
+
+            Scene {
+                aspect_ratio: 16.0 / 9.0,
+                image_width: 400,
+                samples_per_pixel: 100,
+                background: Color::new(0.0, 0.0, 0.0),
+                look_from,
+                look_at,
+                vfov: 20.0,
+                world
+            }
+        },
+        5 => {
+            let world = Arc::new(cornell_box_scene());
+
+            // Camera
+            let look_from = Point3::new(278.0, 278.0, -800.0);
+            let look_at = Point3::new(278.0, 278.0, 0.0);
+
+            Scene {
+                aspect_ratio: 1.0,
+                image_width: 600,
+                samples_per_pixel: 200,
+                background: Color::new(0.0, 0.0, 0.0),
+                look_from,
+                look_at,
+                vfov: 40.0,
+                world
+            }
         },
         _ => {
             panic!("Unsupported scene selected")
         }
     };
+    
+    let image_width = scene.image_width;
+    let image_height = (scene.image_width as f64 * scene.aspect_ratio) as usize;
 
-
-    let camera = Arc::new(Camera::new(&look_from, &look_at, &vup, 20.0, ASPECT_RATIO, aperture, dist_to_focus, 0.0, 1.0));
+    let camera = Arc::new(Camera::new(&scene.look_from, &scene.look_at, &vup, scene.vfov, scene.aspect_ratio, 0.1, dist_to_focus, 0.0, 1.0));
 
     // Render
-    println!("P3\n{} {}\n255\n", IMAGE_WIDTH, IMAGE_HEIGHT);
+    println!("P3\n{} {}\n255\n", image_width, image_height);
 
     use std::{time, thread};
     use std::sync::{Arc, Mutex};
 
-    let pixel_colors = Arc::new(Mutex::new(vec![vec![Color::new(0.0, 0.0, 0.0); IMAGE_HEIGHT]; IMAGE_WIDTH]));
+    let pixel_colors = Arc::new(Mutex::new(vec![vec![Color::new(0.0, 0.0, 0.0); image_height]; image_width]));
     let mut remaining_pixel_list: Vec<PixelChunk> = Vec::new();
 
-    for x in 0..IMAGE_WIDTH {
-        for y in 0..IMAGE_HEIGHT {
+    for x in 0..image_width {
+        for y in 0..image_height {
             remaining_pixel_list.push(PixelChunk { x, y });
         }
     }
 
     let mut thread_handles = Vec::new();
     let remaining_pixels = Arc::new(Mutex::new(remaining_pixel_list));
-    let pixels_to_process_count = IMAGE_WIDTH * IMAGE_HEIGHT;
+    let pixels_to_process_count = image_width * image_height;
     let pixel_count = Arc::new(Mutex::new(pixels_to_process_count));
 
     eprintln!(
         "Rendering {}x{} ({} pixels) image with {} samples per pixel and a max depth of {}, using {} threads", 
-        IMAGE_WIDTH,
-        IMAGE_HEIGHT,
-        IMAGE_WIDTH * IMAGE_HEIGHT,
-        samples_per_pixel,
+        image_width,
+        image_height,
+        image_width * image_height,
+        scene.samples_per_pixel,
         max_depth,
         thread_count
         );
@@ -238,10 +350,12 @@ fn main() {
 
     for _i in 0..thread_count {
         let pixel_colors = Arc::clone(&pixel_colors);
-        let world = Arc::clone(&world);
+        let world = Arc::clone(&scene.world);
         let camera = Arc::clone(&camera);
         let remaining_pixels = Arc::clone(&remaining_pixels);
         let pixel_count = Arc::clone(&pixel_count);
+        let samples_per_pixel = scene.samples_per_pixel;
+        let background = scene.background;
 
         let handle = thread::spawn(move || {
             loop {
@@ -252,12 +366,12 @@ fn main() {
 
                     let mut pixel_color = Color::new(0.0, 0.0, 0.0);
                     for _s in 0..samples_per_pixel {
-                        let u = (pixel.x as f64 + random_double()) / (IMAGE_WIDTH as f64 - 1.0);
-                        let v = (pixel.y as f64 + random_double()) / (IMAGE_HEIGHT as f64 - 1.0);
+                        let u = (pixel.x as f64 + random_double()) / (image_width as f64 - 1.0);
+                        let v = (pixel.y as f64 + random_double()) / (image_height as f64 - 1.0);
 
                         let r = camera.get_ray(u, v);
 
-                        pixel_color += ray_color(&r, &world.hittables, max_depth, &world.materials);
+                        pixel_color += ray_color(&r, &background, &world.hittables, max_depth, &world.materials);
                     }
 
                     let mut pixels = pixel_colors.lock().unwrap();
@@ -302,10 +416,10 @@ fn main() {
         handle.join().unwrap();
     }
 
-    for j in (0..=IMAGE_HEIGHT - 1).rev() {
-        for i in 0..IMAGE_WIDTH {
+    for j in (0..=image_height - 1).rev() {
+        for i in 0..image_width {
             let colors = pixel_colors.lock().unwrap();
-            colors[i][j].write_color(samples_per_pixel);
+            colors[i][j].write_color(scene.samples_per_pixel as i32);
         }
     }
 

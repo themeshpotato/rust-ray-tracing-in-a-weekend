@@ -6,7 +6,8 @@ use crate::texture::*;
 pub enum Material {
     Lambertian { albedo: Texture },
     Metal { albedo: Color, fuzz: f64 },
-    Dielectric { ir: f64 }
+    Dielectric { ir: f64 },
+    DiffuseLight { emit: Texture }
 }
 
 impl Material {
@@ -14,7 +15,19 @@ impl Material {
         match self {
             Material::Lambertian { albedo } => Self::lambertian_scatter(albedo, ray, rec),
             Material::Metal { albedo, fuzz } => Self::metal_scatter(albedo, *fuzz, ray, rec),
-            Material::Dielectric { ir } => Self::dielectric_scatter(*ir, ray, rec)
+            Material::Dielectric { ir } => Self::dielectric_scatter(*ir, ray, rec),
+            Material::DiffuseLight { emit: _ } => None
+        }
+    }
+
+    pub fn emitted(&self, u: f64, v: f64, p: &Point3) -> Color {
+        match self {
+            Material::DiffuseLight { emit } => {
+                emit.get_color_value(u, v, p)
+            },
+            _ => {
+                Color::new(0.0, 0.0, 0.0)
+            }
         }
     }
 

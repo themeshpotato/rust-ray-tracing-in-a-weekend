@@ -33,9 +33,19 @@ impl AABB {
         AABB::new(small, big)
     }
 
-    fn box_compare(_a: &Hittable, _b: &Hittable, _axis: i32) -> std::cmp::Ordering {
-        unimplemented!();
-        //std::cmp::Ordering::Greater
+    fn box_compare(a: &Hittable, b: &Hittable, axis: i32) -> std::cmp::Ordering {
+        if let (Some(box_a), Some(box_b)) = (a.bounding_box(0.0, 0.0), b.bounding_box(0.0, 0.0)) {
+            let a_min = box_a.minimum.as_array();
+            let b_min = box_b.minimum.as_array();
+
+            if a_min[axis as usize] < b_min[axis as usize] { 
+                std::cmp::Ordering::Less 
+            } else {
+                std::cmp::Ordering::Greater
+            }
+        } else {
+            std::cmp::Ordering::Equal
+        }
     }
 
     #[allow(dead_code)]

@@ -30,7 +30,7 @@ impl HitRecord {
 pub enum Hittable {
     Sphere          { mat_handle: MaterialHandle, center: Point3, radius: f64 },
     MovingSphere    { mat_handle: MaterialHandle, center_0: Point3, center_1: Point3, time_0: f64, time_1: f64, radius: f64 },
-    BvhNode         { list: Vec<usize>, left_index: usize, right_index: usize, aabb_box: AABB },
+    BvhNode         { left: Box<Hittable>, right: Box<Hittable>, aabb_box: AABB },
     XYRect          { mat_handle: MaterialHandle, x0: f64, x1: f64, y0: f64, y1: f64, k: f64 },
     XZRect          { mat_handle: MaterialHandle, x0: f64, x1: f64, z0: f64, z1: f64, k: f64 },
     YZRect          { mat_handle: MaterialHandle, y0: f64, y1: f64, z0: f64, z1: f64, k: f64 },
@@ -54,7 +54,6 @@ pub fn hit_hittables(hittables: &Vec<Hittable>, ray: &Ray, t_min: f64, t_max: f6
     rec
 }
 
-#[allow(dead_code)]
 pub fn hittables_bounding_box(hittables: &Vec<Hittable>, time_0: f64, time_1: f64) -> Option<AABB> {
     if hittables.len() == 0 {
         return None;
@@ -75,13 +74,12 @@ pub fn hittables_bounding_box(hittables: &Vec<Hittable>, time_0: f64, time_1: f6
 }
 
 impl Hittable {
-    #[allow(dead_code)]
-    pub fn new_bvh_node(indices: &Vec<usize>, list: &mut Vec<Hittable>, start: usize, end: usize, time_0: f64, time_1: f64) -> Hittable {
-        let mut indices_cpy = indices.clone();
+    pub fn new_bvh_node(list: &Vec<Hittable>, start: usize, end: usize, time_0: f64, time_1: f64) -> Hittable {
+        let mut cpy = list.clone();
         let left;
         let right;
 
-        let axis = random_int_range(0, 3);
+        let axis = random_int_range(0, 2);
         let comparator = match axis { 
             0 => {
                 AABB::box_x_compare
@@ -96,34 +94,36 @@ impl Hittable {
 
         let object_span = end - start;
         if object_span == 1 { 
-            left = start;
-            right = start; 
+            left = Box::new(cpy[start].clone());
+            right = Box::new(cpy[start].clone()); 
         } else if object_span == 2 {
-            if comparator(&list[indices_cpy[start]], &list[indices_cpy[start + 1]]) == std::cmp::Ordering::Greater {
-                left = start;
-                right = start + 1;
+            if comparator(&cpy[start], &cpy[start + 1]) == std::cmp::Ordering::Less {
+                left = Box::new(cpy[start].clone());
+                right = Box::new(cpy[start + 1].clone());
             } else {
-                left = start + 1;
-                right = start;
+                left = Box::new(cpy[start + 1].clone());
+                right = Box::new(cpy[start].clone());
             }
         } else {
-            indices_cpy[start..end].sort_by(|a, b| comparator(&list[*a], &list[*b]));
+            cpy[start..end].sort_by(comparator);
             let mid = start + object_span / 2;
-            let left_node = Self::new_bvh_node(indices, list, start, mid, time_0, time_1);
-            let right_node = Self::new_bvh_node(indices, list, start, mid, time_0, time_1);
-
-            list.push(left_node);
-            list.push(right_node);
-
-            left = list.len() - 2;
-            right = list.len() - 1;
+            left = Box::new(Self::new_bvh_node(&cpy, start, mid, time_0, time_1));
+            right = Box::new(Self::new_bvh_node(&cpy, mid, end, time_0, time_1));
         }
+
+        let aabb_box = {
+            if let (Some(box_left), Some(box_right)) = (left.bounding_box(time_0, time_1), right.bounding_box(time_0, time_1)) {
+                AABB::surrounding_box(&box_left, &box_right)
+            } else {
+                eprintln!("No bounding box in BVHNode");
+                AABB::new(Point3::new(0.0, 0.0, 0.0), Point3::new(0.0, 0.0, 0.0))
+            }
+        };
         
         Hittable::BvhNode {
-            list: indices_cpy,
-            left_index: left,
-            right_index: right,
-            aabb_box: AABB::new(Point3::new(0.0, 0.0, 0.0), Point3::new(0.0, 0.0, 0.0)),
+            left,
+            right,
+            aabb_box
         }
     }
 
@@ -212,8 +212,8 @@ impl Hittable {
             Hittable::MovingSphere { mat_handle, center_0, center_1, time_0, time_1, radius } => {
                 Self::sphere_hit(&Self::get_center_at_time(center_0, center_1, *time_0, *time_1, ray.time), *radius, ray, t_min, t_max, *mat_handle)
             },
-            Hittable::BvhNode { list: _, left_index: _, right_index: _, aabb_box: _ } => {
-                None
+            Hittable::BvhNode { left, right, aabb_box } => {
+                Self::bvh_node_hit(left, right, aabb_box, ray, t_min, t_max)
             },
             Hittable::XYRect { mat_handle, x0, x1, y0, y1, k } => {
                 Self::xy_rect_hit(*x0, *x1, *y0, *y1, *k, ray, t_min, t_max, *mat_handle)
@@ -285,25 +285,21 @@ impl Hittable {
         Some(rec)
     }
 
-    #[allow(dead_code)]
-    fn bvh_node_hit(left: usize, right: usize, aabb: &AABB, ray: &Ray, t_min: f64, t_max: f64, hittables: &Vec<Hittable>) -> Option<HitRecord> {
+    fn bvh_node_hit(left: &Box<Hittable>, right: &Box<Hittable>, aabb: &AABB, ray: &Ray, t_min: f64, t_max: f64) -> Option<HitRecord> {
         if !aabb.hit(ray, t_min, t_max) {
             return None;
         }
 
-        let hit_left = hittables[left].hit(ray, t_min, t_max);
-
-        let max = if let Some(rec) = &hit_left {
-            rec.t
-        } else {
-            t_max 
-        };
-
-        // This is a weird workaround right now...
-        if let Some(hit_right) = hittables[right].hit(ray, t_min, max) {
+        if let Some(hit_left) = left.hit(ray, t_min, t_max) {
+            if let Some(hit_right) = right.hit(ray, t_min, hit_left.t) {
+                Some(hit_right)
+            } else {
+                Some(hit_left)
+            }
+        } else if let Some(hit_right) = right.hit(ray, t_min, t_max) {
             Some(hit_right)
         } else {
-            hit_left
+            None
         }
     }
 
@@ -474,7 +470,6 @@ impl Hittable {
 
     }
 
-    #[allow(dead_code)]
     pub fn bounding_box(&self, time_0: f64, time_1: f64) -> Option<AABB> {
         match self {
             Hittable::Sphere { mat_handle: _, center, radius } => {
@@ -483,7 +478,7 @@ impl Hittable {
             Hittable::MovingSphere { mat_handle: _, center_0, center_1, time_0, time_1, radius } => {
                 Self::moving_sphere_bounding_box(&center_0, &center_1, *radius, *time_0, *time_1)
             },
-            Hittable::BvhNode { list: _, left_index: _, right_index: _, aabb_box } => {
+            Hittable::BvhNode { left: _, right: _, aabb_box } => {
                 Some(*aabb_box)
             },
             Hittable::XYRect { mat_handle, x0, x1, y0, y1, k } => {
@@ -530,7 +525,6 @@ impl Hittable {
         }
     }
 
-    #[allow(dead_code)]
     fn sphere_bounding_box(center: &Point3, radius: f64) -> Option<AABB> {
         Some(
             AABB::new(
@@ -540,7 +534,6 @@ impl Hittable {
         )
     }
 
-    #[allow(dead_code)]
     fn moving_sphere_bounding_box(center_0: &Point3, center_1: &Point3, radius: f64, time_0: f64, time_1: f64) -> Option<AABB> {
         let c0 = Self::get_center_at_time(center_0, center_1, time_0, time_1, time_0);
         let c1 = Self::get_center_at_time(center_0, center_1, time_0, time_1, time_1);

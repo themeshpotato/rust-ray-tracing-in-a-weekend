@@ -76,6 +76,19 @@ fn two_perlin_spheres_scene() -> World {
     world
 }
 
+fn earth_scene() -> World {
+    let mut world = World {
+        materials: Vec::new(),
+        hittables: Vec::new()
+    };
+
+    let earth_texture = Texture::load_image("textures/earthmap.jpg");
+    let earth_material = world.register_material(Material::Lambertian { albedo: earth_texture });
+    world.hittables.push(Hittable::Sphere { mat_handle: earth_material, center: Point3::new(0.0, 0.0, 0.0), radius: 2.0 });
+    
+    world
+}
+
 fn random_scene() -> World {
     let mut world = World {
         materials: Vec::new(),
@@ -139,7 +152,7 @@ fn main() {
     let vup = Vector3::new(0.0, 1.0, 0.0);
     let dist_to_focus = 10.0; 
 
-    let (world, look_from, look_at, _vfov, aperture) = match 2 {
+    let (world, look_from, look_at, _vfov, aperture) = match 3 {
 
         0 => {
             let world = Arc::new(random_scene());
@@ -171,6 +184,16 @@ fn main() {
 
             (world, look_from, look_at, 20.0, aperture)
         },
+        3 => {
+            let world = Arc::new(earth_scene());
+
+            // Camera
+            let look_from = Point3::new(13.0, 2.0, 3.0);
+            let look_at = Point3::new(0.0, 0.0, 0.0);
+            let aperture = 0.1;
+
+            (world, look_from, look_at, 20.0, aperture)
+        },
         _ => {
             panic!("Unsupported scene selected")
         }
@@ -180,7 +203,7 @@ fn main() {
     let camera = Arc::new(Camera::new(&look_from, &look_at, &vup, 20.0, ASPECT_RATIO, aperture, dist_to_focus, 0.0, 1.0));
 
     // Render
-    println!("P3\n{} {}\n255", IMAGE_WIDTH, IMAGE_HEIGHT);
+    println!("P3\n{} {}\n255\n", IMAGE_WIDTH, IMAGE_HEIGHT);
 
     use std::{time, thread};
     use std::sync::{Arc, Mutex};

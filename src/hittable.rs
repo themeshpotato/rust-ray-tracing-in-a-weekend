@@ -28,15 +28,16 @@ impl HitRecord {
 
 #[derive(Clone)]
 pub enum Hittable {
-    Sphere { mat_handle: MaterialHandle, center: Point3, radius: f64 },
-    MovingSphere { mat_handle: MaterialHandle, center_0: Point3, center_1: Point3, time_0: f64, time_1: f64, radius: f64 },
-    BvhNode { list: Vec<usize>, left_index: usize, right_index: usize, aabb_box: AABB },
-    XYRect { mat_handle: MaterialHandle, x0: f64, x1: f64, y0: f64, y1: f64, k: f64 },
-    XZRect { mat_handle: MaterialHandle, x0: f64, x1: f64, z0: f64, z1: f64, k: f64 },
-    YZRect { mat_handle: MaterialHandle, y0: f64, y1: f64, z0: f64, z1: f64, k: f64 },
-    Box { mat_handle: MaterialHandle, min: Point3, max: Point3, sides: Vec<Hittable> },
-    Translate { offset: Vector3, ptr: Box<Hittable> },
-    RotateY { sin_theta: f64, cos_theta: f64, has_box: bool, bbox: AABB, ptr: Box<Hittable> }
+    Sphere          { mat_handle: MaterialHandle, center: Point3, radius: f64 },
+    MovingSphere    { mat_handle: MaterialHandle, center_0: Point3, center_1: Point3, time_0: f64, time_1: f64, radius: f64 },
+    BvhNode         { list: Vec<usize>, left_index: usize, right_index: usize, aabb_box: AABB },
+    XYRect          { mat_handle: MaterialHandle, x0: f64, x1: f64, y0: f64, y1: f64, k: f64 },
+    XZRect          { mat_handle: MaterialHandle, x0: f64, x1: f64, z0: f64, z1: f64, k: f64 },
+    YZRect          { mat_handle: MaterialHandle, y0: f64, y1: f64, z0: f64, z1: f64, k: f64 },
+    Box             { mat_handle: MaterialHandle, min: Point3, max: Point3, sides: Vec<Hittable> },
+    Translate       { offset: Vector3, ptr: Box<Hittable> },
+    RotateY         { sin_theta: f64, cos_theta: f64, has_box: bool, bbox: AABB, ptr: Box<Hittable> },
+    ConstantMedium  { phase_function: MaterialHandle, boundary: Box<Hittable>, neg_inv_density: f64 }
 }
 
 pub fn hit_hittables(hittables: &Vec<Hittable>, ray: &Ray, t_min: f64, t_max: f64) -> Option<HitRecord> {
@@ -195,6 +196,14 @@ impl Hittable {
         }
     }
 
+    pub fn new_constant_medium(hittable: Hittable, d: f64, mat_handle: MaterialHandle) -> Hittable {
+        Hittable::ConstantMedium {
+            phase_function: mat_handle,
+            boundary: Box::new(hittable),
+            neg_inv_density: -1.0 / d
+        }
+    }
+
     pub fn hit(&self, ray: &Ray, t_min: f64, t_max: f64) -> Option<HitRecord> {
         match self {
             Hittable::Sphere { mat_handle, center, radius } => {
@@ -233,6 +242,9 @@ impl Hittable {
             },
             Hittable::RotateY { sin_theta, cos_theta, has_box: _, bbox: _, ptr } => {
                 Self::hit_rotate_y(*sin_theta, *cos_theta, ptr, ray, t_min, t_max)
+            },
+            Hittable::ConstantMedium { phase_function, boundary, neg_inv_density } => {
+                Self::hit_constant_medium(boundary, *phase_function, *neg_inv_density, ray, t_min, t_max)
             }
         }
     }
@@ -404,6 +416,64 @@ impl Hittable {
         }
     }
 
+    fn hit_constant_medium(boundary: &Box<Hittable>, phase_function: MaterialHandle, neg_inv_density: f64, ray: &Ray, t_min: f64, t_max: f64) -> Option<HitRecord> {
+        // Print occasional samples when debugging. To enable, set enable_debug true.
+        const ENABLE_DEBUG: bool = false;
+        let debugging : bool = ENABLE_DEBUG && random_double() < 0.00001;
+
+        if let Some(mut rec1) = boundary.hit(ray, -f64::INFINITY, f64::INFINITY) {
+            if let Some(mut rec2) = boundary.hit(ray, rec1.t + 0.0001, f64::INFINITY) {
+                if debugging {
+                    eprintln!("t_min={}, t_max={}", rec1.t, rec2.t);
+                }
+
+                if rec1.t < t_min {
+                    rec1.t = t_min;
+                }
+
+                if rec2.t > t_max {
+                    rec2.t = t_max;
+                }
+
+                if rec1.t >= rec2.t {
+                    return None;
+                }
+
+                if rec1.t < 0.0 {
+                    rec1.t = 0.0;
+                }
+
+                let ray_length = ray.direction.length();
+                let distance_inside_boundary = (rec2.t - rec1.t) * ray_length;
+                let hit_distance = neg_inv_density * f64::ln(random_double());
+
+                if hit_distance > distance_inside_boundary {
+                    return None;
+                }
+                
+                let mut rec = HitRecord::new();
+                rec.t = rec1.t + hit_distance / ray_length;
+                rec.point = ray.at(rec.t);
+
+                if debugging {
+                    eprintln!("hit_distance = {}\nrec.t = {}\nrec.point = {}", hit_distance, rec.t, rec.point);
+                }
+
+                rec.normal = Vector3::new(1.0, 0.0, 0.0);
+                rec.front_face = true;
+                rec.mat_handle = phase_function;
+
+                Some(rec)
+            } else {
+                return None;
+            }
+        } else {
+            return None;
+        }
+
+
+    }
+
     #[allow(dead_code)]
     pub fn bounding_box(&self, time_0: f64, time_1: f64) -> Option<AABB> {
         match self {
@@ -453,6 +523,9 @@ impl Hittable {
                 } else {
                     None
                 }
+            },
+            Hittable::ConstantMedium { phase_function: _, boundary, neg_inv_density: _ } => {
+                boundary.bounding_box(time_0, time_1)
             }
         }
     }

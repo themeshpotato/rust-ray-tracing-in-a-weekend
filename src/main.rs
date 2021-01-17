@@ -135,6 +135,41 @@ fn cornell_box_scene() -> World {
     world
 }
 
+fn cornell_box_smoke_scene() -> World {
+    let mut world = World {
+        materials: Vec::new(),
+        hittables: Vec::new()
+    };
+
+    let red = world.register_material(Material::Lambertian { albedo: Texture::SolidColor(Color::new(0.65, 0.05, 0.05)) });
+    let white = world.register_material(Material::Lambertian { albedo: Texture::SolidColor(Color::new(0.73, 0.73, 0.73)) });
+    let green = world.register_material(Material::Lambertian { albedo: Texture::SolidColor(Color::new(0.12, 0.45, 0.15)) });
+    let light = world.register_material(Material::DiffuseLight { emit: Texture::SolidColor(Color::new(7.0, 7.0, 7.0)) });
+
+    world.hittables.push(Hittable::YZRect { mat_handle: green, y0: 0.0,     y1: 555.0, z0: 0.0,     z1: 555.0, k: 555.0 });
+    world.hittables.push(Hittable::YZRect { mat_handle: red,   y0: 0.0,     y1: 555.0, z0: 0.0,     z1: 555.0, k: 0.0 });
+    world.hittables.push(Hittable::XZRect { mat_handle: light, x0: 113.0,   x1: 443.0, z0: 127.0,   z1: 432.0, k: 554.0 });
+    world.hittables.push(Hittable::XZRect { mat_handle: white, x0: 0.0,     x1: 555.0, z0: 0.0,     z1: 555.0, k: 0.0 });
+    world.hittables.push(Hittable::XZRect { mat_handle: white, x0: 0.0,     x1: 555.0, z0: 0.0,     z1: 555.0, k: 555.0 });
+    world.hittables.push(Hittable::XYRect { mat_handle: white, x0: 0.0,     x1: 555.0, y0: 0.0,     y1: 555.0, k: 555.0 });
+
+    let box1_phase = world.register_material(Material::Isotropic { albedo: Texture::SolidColor(Color::new(0.0, 0.0, 0.0)) });
+    let box1 = Hittable::new_box(Point3::new(0.0, 0.0, 0.0), Point3::new(165.0, 330.0, 165.0), white);
+    let box1 = Hittable::new_rotate_y(15.0, box1);
+    let box1 = Hittable::Translate { offset: Vector3::new(265.0, 0.0, 295.0), ptr: Box::new(box1) };
+    let box1 = Hittable::new_constant_medium(box1, 0.01, box1_phase);
+    world.hittables.push(box1);
+    
+    let box2_phase = world.register_material(Material::Isotropic { albedo: Texture::SolidColor(Color::new(1.0, 1.0, 1.0)) });
+    let box2 = Hittable::new_box(Point3::new(0.0, 0.0, 0.0), Point3::new(165.0, 165.0, 165.0), white);
+    let box2 = Hittable::new_rotate_y(-18.0, box2);
+    let box2 = Hittable::Translate { offset: Vector3::new(130.0, 0.0, 65.0), ptr: Box::new(box2) };
+    let box2 = Hittable::new_constant_medium(box2, 0.01, box2_phase);
+    world.hittables.push(box2);
+
+    world
+}
+
 fn random_scene() -> World {
     let mut world = World {
         materials: Vec::new(),
@@ -204,7 +239,7 @@ fn main() {
     let vup = Vector3::new(0.0, 1.0, 0.0);
     let dist_to_focus = 10.0; 
 
-    let scene = match 5 {
+    let scene = match 6 {
 
         0 => {
             let world = Arc::new(random_scene());
@@ -307,6 +342,24 @@ fn main() {
                 aspect_ratio: 1.0,
                 image_width: 600,
                 samples_per_pixel: 200,
+                background: Color::new(0.0, 0.0, 0.0),
+                look_from,
+                look_at,
+                vfov: 40.0,
+                world
+            }
+        },
+        6 => {
+            let world = Arc::new(cornell_box_smoke_scene());
+
+            // Camera
+            let look_from = Point3::new(278.0, 278.0, -800.0);
+            let look_at = Point3::new(278.0, 278.0, 0.0);
+
+            Scene {
+                aspect_ratio: 1.0,
+                image_width: 600,
+                samples_per_pixel: 40,
                 background: Color::new(0.0, 0.0, 0.0),
                 look_from,
                 look_at,

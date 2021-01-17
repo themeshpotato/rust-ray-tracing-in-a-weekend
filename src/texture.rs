@@ -4,7 +4,7 @@ use crate::perlin::Perlin;
 pub enum Texture {
     SolidColor(Color),
     Checker(Color, Color),
-    Noise(Perlin)
+    Noise(Perlin, f64)
 }
 
 pub trait ColorValue {
@@ -12,7 +12,7 @@ pub trait ColorValue {
 }
 
 impl ColorValue for Texture {
-    fn get_color_value(&self, u: f64, v: f64, p: &Point3) -> Color {
+    fn get_color_value(&self, _u: f64, _v: f64, p: &Point3) -> Color {
         match self {
             Texture::SolidColor(color) => {
                 *color
@@ -25,8 +25,8 @@ impl ColorValue for Texture {
                     *even
                 }
             },
-            Texture::Noise(perlin) => {
-                Color::new(1.0, 1.0, 1.0) * perlin.noise(p)
+            Texture::Noise(perlin, scale) => {
+                Color::new(1.0, 1.0, 1.0) * 0.5 * (1.0 + (scale * p.z + 10.0 * perlin.turb(p, 7)).sin())
             }
         }
     }

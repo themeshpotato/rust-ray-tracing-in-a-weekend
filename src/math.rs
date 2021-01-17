@@ -132,8 +132,8 @@ impl Vector3 {
     }
 
     pub fn near_zero(&self) -> bool {
-        const s: f64 = 1e-8;
-        self.x.abs() < s && self.y.abs() < s && self.z.abs() < s
+        const S: f64 = 1e-8;
+        self.x.abs() < S && self.y.abs() < S && self.z.abs() < S
     }
 }
 
@@ -163,6 +163,12 @@ impl ops::AddAssign for Vector3 {
             y: self.y + other.y,
             z: self.z + other.z
         };
+    }
+}
+
+impl ops::MulAssign<f64> for Vector3 {
+    fn mul_assign(&mut self, other: f64) {
+        *self = *self * other
     }
 }
 

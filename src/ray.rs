@@ -7,14 +7,6 @@ pub struct Ray {
 }
 
 impl Ray {
-    pub fn new(origin: Point3, direction: Vector3) -> Ray {
-        Ray {
-            origin,
-            direction,
-            time: 0.0
-        }
-    }
-
     pub fn with_time(origin: Point3, direction: Vector3, time: f64) -> Ray {
         Ray {
             origin,

@@ -7,7 +7,7 @@ mod aabb;
 mod texture;
 mod perlin;
 
-use aabb::*;
+//use aabb::*;
 use math::*;
 use ray::*;
 use camera::*;
@@ -15,22 +15,6 @@ use hittable::*;
 use material::*;
 use texture::*;
 use perlin::*;
-
-use std::io::{self, Write};
-
-fn hit_sphere(center: &Point3, radius: f64, ray: &Ray) -> f64 {
-    let oc = ray.origin - *center;
-    let a = ray.direction.length_squared();
-    let half_b = Vector3::dot(&oc, &ray.direction);
-    let c = oc.length_squared() - radius * radius;
-    let discrimant = half_b * half_b - a * c;
-
-    if discrimant < 0.0 {
-        -1.0
-    } else {
-        (-half_b - discrimant.sqrt() ) / a
-    }
-}
 
 fn ray_color(ray: &Ray, hittables: &Vec<Hittable>, depth: i32, materials: &Vec<Material>) -> Color {
     // If we've exceeded the ray bounce limit, no more light is gathered
@@ -85,7 +69,7 @@ fn two_perlin_spheres_scene() -> World {
         hittables: Vec::new()
     };
 
-    let ground_material = world.register_material(Material::Lambertian { albedo: Texture::Noise(Perlin::new()) });
+    let ground_material = world.register_material(Material::Lambertian { albedo: Texture::Noise(Perlin::new(), 4.0) });
     world.hittables.push(Hittable::Sphere { mat_handle: ground_material, center: Point3::new(0.0, -1000.0, 0.0), radius: 1000.0 });
     world.hittables.push(Hittable::Sphere { mat_handle: ground_material, center: Point3::new(0.0, 2.0, 0.0), radius: 2.0 });
 
@@ -145,9 +129,9 @@ struct PixelChunk {
 
 fn main() {
     // Image
-    const aspect_ratio: f64 = 16.0 / 9.0; 
-    const image_width: usize = 400;
-    const image_height: usize = (image_width as f64 / aspect_ratio) as usize;
+    const ASPECT_RATIO: f64 = 16.0 / 9.0; 
+    const IMAGE_WIDTH: usize = 400;
+    const IMAGE_HEIGHT: usize = (IMAGE_WIDTH as f64 / ASPECT_RATIO) as usize;
 
     let thread_count = 10;
     let samples_per_pixel = 100;
@@ -155,10 +139,10 @@ fn main() {
     let vup = Vector3::new(0.0, 1.0, 0.0);
     let dist_to_focus = 10.0; 
 
-    let (world, look_from, look_at, vfov, aperture) = match 2 {
+    let (world, look_from, look_at, _vfov, aperture) = match 2 {
 
         0 => {
-            let mut world = Arc::new(random_scene());
+            let world = Arc::new(random_scene());
 
             // Camera
             let look_from = Point3::new(13.0, 2.0, 3.0);
@@ -168,7 +152,7 @@ fn main() {
             (world, look_from, look_at, 20.0, aperture)
         },
         1 => {
-            let mut world = Arc::new(two_spheres_scene());
+            let world = Arc::new(two_spheres_scene());
 
             // Camera
             let look_from = Point3::new(13.0, 2.0, 3.0);
@@ -178,7 +162,7 @@ fn main() {
             (world, look_from, look_at, 20.0, aperture)
         },
         2 => {
-            let mut world = Arc::new(two_perlin_spheres_scene());
+            let world = Arc::new(two_perlin_spheres_scene());
 
             // Camera
             let look_from = Point3::new(13.0, 2.0, 3.0);
@@ -193,44 +177,43 @@ fn main() {
     };
 
 
-    let camera = Arc::new(Camera::new(&look_from, &look_at, &vup, 20.0, aspect_ratio, aperture, dist_to_focus, 0.0, 1.0));
+    let camera = Arc::new(Camera::new(&look_from, &look_at, &vup, 20.0, ASPECT_RATIO, aperture, dist_to_focus, 0.0, 1.0));
 
     // Render
-    println!("P3\n{} {}\n255", image_width, image_height);
+    println!("P3\n{} {}\n255", IMAGE_WIDTH, IMAGE_HEIGHT);
 
     use std::{time, thread};
     use std::sync::{Arc, Mutex};
 
-    let mut pixel_colors = Arc::new(Mutex::new(vec![vec![Color::new(0.0, 0.0, 0.0); image_height]; image_width]));
+    let pixel_colors = Arc::new(Mutex::new(vec![vec![Color::new(0.0, 0.0, 0.0); IMAGE_HEIGHT]; IMAGE_WIDTH]));
     let mut remaining_pixel_list: Vec<PixelChunk> = Vec::new();
 
-    for x in 0..image_width {
-        for y in 0..image_height {
+    for x in 0..IMAGE_WIDTH {
+        for y in 0..IMAGE_HEIGHT {
             remaining_pixel_list.push(PixelChunk { x, y });
         }
     }
 
     let mut thread_handles = Vec::new();
-    let mut remaining_pixels = Arc::new(Mutex::new(remaining_pixel_list));
-    let mut threads_running = Arc::new(Mutex::new(thread_count));
-    let pixels_to_process_count = image_width * image_height;
-    let mut pixel_count = Arc::new(Mutex::new(pixels_to_process_count));
+    let remaining_pixels = Arc::new(Mutex::new(remaining_pixel_list));
+    let pixels_to_process_count = IMAGE_WIDTH * IMAGE_HEIGHT;
+    let pixel_count = Arc::new(Mutex::new(pixels_to_process_count));
 
     eprintln!(
         "Rendering {}x{} ({} pixels) image with {} samples per pixel and a max depth of {}, using {} threads", 
-        image_width,
-        image_height,
-        image_width * image_height,
+        IMAGE_WIDTH,
+        IMAGE_HEIGHT,
+        IMAGE_WIDTH * IMAGE_HEIGHT,
         samples_per_pixel,
         max_depth,
         thread_count
         );
 
-    use std::time::{Duration, Instant};
+    use std::time::Instant;
     
     let now = Instant::now();
 
-    for i in 0..thread_count {
+    for _i in 0..thread_count {
         let pixel_colors = Arc::clone(&pixel_colors);
         let world = Arc::clone(&world);
         let camera = Arc::clone(&camera);
@@ -245,9 +228,9 @@ fn main() {
                     drop(remaining_pixels);
 
                     let mut pixel_color = Color::new(0.0, 0.0, 0.0);
-                    for s in 0..samples_per_pixel {
-                        let u = (pixel.x as f64 + random_double()) / (image_width as f64 - 1.0);
-                        let v = (pixel.y as f64 + random_double()) / (image_height as f64 - 1.0);
+                    for _s in 0..samples_per_pixel {
+                        let u = (pixel.x as f64 + random_double()) / (IMAGE_WIDTH as f64 - 1.0);
+                        let v = (pixel.y as f64 + random_double()) / (IMAGE_HEIGHT as f64 - 1.0);
 
                         let r = camera.get_ray(u, v);
 
@@ -296,8 +279,8 @@ fn main() {
         handle.join().unwrap();
     }
 
-    for j in (0..=image_height - 1).rev() {
-        for i in 0..image_width {
+    for j in (0..=IMAGE_HEIGHT - 1).rev() {
+        for i in 0..IMAGE_WIDTH {
             let colors = pixel_colors.lock().unwrap();
             colors[i][j].write_color(samples_per_pixel);
         }

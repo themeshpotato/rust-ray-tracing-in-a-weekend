@@ -20,12 +20,12 @@ impl Material {
 
     fn lambertian_scatter(albedo: &Texture, ray: &Ray, rec: &HitRecord) -> Option<(Ray, Color)> {
         let mut scatter_direction = rec.normal + Vector3::random_unit_vector();
-        let scattered = Ray::with_time(rec.point, scatter_direction, ray.time);
-
         // Catch degenerate scatter_direction
         if scatter_direction.near_zero() {
             scatter_direction = rec.normal;
         }
+        let scattered = Ray::with_time(rec.point, scatter_direction, ray.time);
+
 
         let attenuation = albedo.get_color_value(rec.u, rec.v, &rec.point);
         
@@ -72,10 +72,6 @@ impl Material {
         r0 = r0 * r0;
         r0 + (1.0 - r0) * (1.0 - cosine).powf(5.0)
     }
-}
-
-pub struct Materials {
-    pub materials: Vec<Material>
 }
 
 #[derive(Default, Copy, Clone)]

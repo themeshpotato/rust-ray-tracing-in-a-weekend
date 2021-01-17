@@ -16,6 +16,7 @@ impl AABB {
         }
     }
 
+    #[allow(dead_code)]
     pub fn surrounding_box(box0: &AABB, box1: &AABB) -> AABB {
         let small = Point3::new(
             box0.minimum.x.min(box1.minimum.x),
@@ -32,22 +33,27 @@ impl AABB {
         AABB::new(small, big)
     }
 
-    fn box_compare(a: &Hittable, b: &Hittable, axis: i32) -> std::cmp::Ordering {
-        std::cmp::Ordering::Greater
+    fn box_compare(_a: &Hittable, _b: &Hittable, _axis: i32) -> std::cmp::Ordering {
+        unimplemented!();
+        //std::cmp::Ordering::Greater
     }
 
+    #[allow(dead_code)]
     pub fn box_x_compare(a: &Hittable, b: &Hittable) -> std::cmp::Ordering {
         Self::box_compare(a, b, 0)
     }
 
+    #[allow(dead_code)]
     pub fn box_y_compare(a: &Hittable, b: &Hittable) -> std::cmp::Ordering {
         Self::box_compare(a, b, 1)
     }
 
+    #[allow(dead_code)]
     pub fn box_z_compare(a: &Hittable, b: &Hittable) -> std::cmp::Ordering {
         Self::box_compare(a, b, 2)
     }
 
+    #[allow(dead_code)]
     fn min_max(a: f64, b: f64, min: &mut f64, max: &mut f64) -> bool {
         let t0 = a.min(b); 
         let t1 = a.max(b);
@@ -60,7 +66,8 @@ impl AABB {
 
         false
     }
-
+    
+    #[allow(dead_code)]
     pub fn hit(&self, ray: &Ray, t_min: f64, t_max: f64) -> bool {
         let mut min = t_min;
         let mut max = t_max;
@@ -70,11 +77,11 @@ impl AABB {
         let ray_direction = ray.direction.as_array();
 
         for a in 0..3 {
-            let invD = 1.0 / ray_direction[a];
-            let mut t0 = (minimum[a] - ray_origin[a]) * invD;
-            let mut t1 = (maximum[a] - ray_origin[a]) * invD;
+            let inv_d = 1.0 / ray_direction[a];
+            let mut t0 = (minimum[a] - ray_origin[a]) * inv_d;
+            let mut t1 = (maximum[a] - ray_origin[a]) * inv_d;
 
-            if invD < 0.0 {
+            if inv_d < 0.0 {
                 std::mem::swap(&mut t0, &mut t1);
             }
 

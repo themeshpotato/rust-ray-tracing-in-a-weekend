@@ -16,18 +16,17 @@ impl AABB {
         }
     }
 
-    #[allow(dead_code)]
     pub fn surrounding_box(box0: &AABB, box1: &AABB) -> AABB {
         let small = Point3::new(
-            box0.minimum.x.min(box1.minimum.x),
-            box0.minimum.y.min(box1.minimum.y),
-            box0.minimum.z.min(box1.minimum.z)
+            f64::min(box0.minimum.x, box1.minimum.x),
+            f64::min(box0.minimum.y, box1.minimum.y),
+            f64::min(box0.minimum.z, box1.minimum.z)
         );
 
         let big = Point3::new(
-            box0.maximum.x.min(box1.maximum.x),
-            box0.maximum.y.min(box1.maximum.y),
-            box0.maximum.z.min(box1.maximum.z)
+            f64::max(box0.maximum.x, box1.maximum.x),
+            f64::max(box0.maximum.y, box1.maximum.y),
+            f64::max(box0.maximum.z, box1.maximum.z)
         );
 
         AABB::new(small, big)
@@ -48,17 +47,14 @@ impl AABB {
         }
     }
 
-    #[allow(dead_code)]
     pub fn box_x_compare(a: &Hittable, b: &Hittable) -> std::cmp::Ordering {
         Self::box_compare(a, b, 0)
     }
 
-    #[allow(dead_code)]
     pub fn box_y_compare(a: &Hittable, b: &Hittable) -> std::cmp::Ordering {
         Self::box_compare(a, b, 1)
     }
 
-    #[allow(dead_code)]
     pub fn box_z_compare(a: &Hittable, b: &Hittable) -> std::cmp::Ordering {
         Self::box_compare(a, b, 2)
     }

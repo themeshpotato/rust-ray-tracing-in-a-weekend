@@ -200,30 +200,30 @@ fn final_scene() -> World {
     let light = world.register_material(Material::DiffuseLight { emit: Texture::SolidColor(Color::new(7.0, 7.0, 7.0)) });
     world.hittables.push(Hittable::XZRect { mat_handle: light, x0: 123.0, x1: 423.0, z0: 147.0, z1: 412.0, k: 554.0 });
 
-    //let center_1 = Point3::new(400.0, 400.0, 200.0);
-    //let center_2 = center_1 + Vector3::new(30.0, 0.0, 0.0);
-    //let moving_sphere_material = world.register_material(Material::Lambertian { albedo: Texture::SolidColor(Color::new(0.7, 0.3, 0.1)) });
-    //world.hittables.push(Hittable::MovingSphere { mat_handle: moving_sphere_material, center_0: center_1, center_1: center_2, time_0: 0.0, time_1: 1.0, radius: 50.0 });
+    let center_1 = Point3::new(400.0, 400.0, 200.0);
+    let center_2 = center_1 + Vector3::new(30.0, 0.0, 0.0);
+    let moving_sphere_material = world.register_material(Material::Lambertian { albedo: Texture::SolidColor(Color::new(0.7, 0.3, 0.1)) });
+    world.hittables.push(Hittable::MovingSphere { mat_handle: moving_sphere_material, center_0: center_1, center_1: center_2, time_0: 0.0, time_1: 1.0, radius: 50.0 });
 
-    //let dielectric = world.register_material(Material::Dielectric { ir: 1.5 });
-    //world.hittables.push(Hittable::Sphere { mat_handle: dielectric, center: Point3::new(260.0, 150.0, 45.0), radius: 50.0 });
+    let dielectric = world.register_material(Material::Dielectric { ir: 1.5 });
+    world.hittables.push(Hittable::Sphere { mat_handle: dielectric, center: Point3::new(260.0, 150.0, 45.0), radius: 50.0 });
 
-    //let metal = world.register_material(Material::Metal { albedo: Color::new(0.8, 0.8, 0.9), fuzz: 1.0 });
-    //world.hittables.push(Hittable::Sphere { mat_handle: metal, center: Point3::new(260.0, 150.0, 45.0), radius: 50.0 });
+    let metal = world.register_material(Material::Metal { albedo: Color::new(0.8, 0.8, 0.9), fuzz: 1.0 });
+    world.hittables.push(Hittable::Sphere { mat_handle: metal, center: Point3::new(0.0, 150.0, 145.0), radius: 50.0 });
 
-    //let boundary = Hittable::Sphere { mat_handle: dielectric, center: Point3::new(360.0, 150.0, 145.0), radius: 70.0 };
-    //world.hittables.push(boundary.clone());
-    //let phase = world.register_material(Material::Isotropic { albedo: Texture::SolidColor(Color::new(0.2, 0.4, 0.9)) });
-    //world.hittables.push(Hittable::new_constant_medium(boundary, 0.2, phase));
+    let boundary = Hittable::Sphere { mat_handle: dielectric, center: Point3::new(360.0, 150.0, 145.0), radius: 70.0 };
+    world.hittables.push(boundary.clone());
+    let phase = world.register_material(Material::Isotropic { albedo: Texture::SolidColor(Color::new(0.2, 0.4, 0.9)) });
+    world.hittables.push(Hittable::new_constant_medium(boundary, 0.2, phase));
 
-    //let boundary = Hittable::Sphere { mat_handle: dielectric, center: Point3::new(0.0, 0.0, 0.0), radius: 5000.0 };
-    //let phase = world.register_material(Material::Isotropic { albedo: Texture::SolidColor(Color::new(1.0, 1.0, 1.0)) });
-    //world.hittables.push(Hittable::new_constant_medium(boundary, 0.0001, phase));
+    let boundary = Hittable::Sphere { mat_handle: dielectric, center: Point3::new(0.0, 0.0, 0.0), radius: 5000.0 };
+    let phase = world.register_material(Material::Isotropic { albedo: Texture::SolidColor(Color::new(1.0, 1.0, 1.0)) });
+    world.hittables.push(Hittable::new_constant_medium(boundary, 0.0001, phase));
 
-    //let emat = world.register_material(Material::Lambertian { albedo: Texture::load_image("textures/earthmap.jpg") });
-    //world.hittables.push(Hittable::Sphere { mat_handle: emat, center: Point3::new(400.0, 200.0, 400.0), radius: 100.0 });
-    //let pertext = world.register_material(Material::Lambertian { albedo: Texture::Noise(Perlin::new(), 0.1) });
-    //world.hittables.push(Hittable::Sphere { mat_handle: pertext, center: Point3::new(220.0, 280.0, 300.0), radius: 80.0 });
+    let emat = world.register_material(Material::Lambertian { albedo: Texture::load_image("textures/earthmap.jpg") });
+    world.hittables.push(Hittable::Sphere { mat_handle: emat, center: Point3::new(400.0, 200.0, 400.0), radius: 100.0 });
+    let pertext = world.register_material(Material::Lambertian { albedo: Texture::Noise(Perlin::new(), 0.1) });
+    world.hittables.push(Hittable::Sphere { mat_handle: pertext, center: Point3::new(220.0, 280.0, 300.0), radius: 80.0 });
 
     let mut boxes2 = Vec::new();
     let white = world.register_material(Material::Lambertian { albedo: Texture::SolidColor(Color::new(0.73, 0.73, 0.73)) });
@@ -449,7 +449,7 @@ fn main() {
             Scene {
                 aspect_ratio: 1.0,
                 image_width: 800,
-                samples_per_pixel: 40,
+                samples_per_pixel: 2000,
                 background: Color::new(0.0, 0.0, 0.0),
                 look_from,
                 look_at,
@@ -475,18 +475,9 @@ fn main() {
     use std::sync::{Arc, Mutex};
 
     let pixel_colors = Arc::new(Mutex::new(vec![vec![Color::new(0.0, 0.0, 0.0); image_height]; image_width]));
-    let mut remaining_pixel_list: Vec<PixelChunk> = Vec::new();
-
-    for x in 0..image_width {
-        for y in 0..image_height {
-            remaining_pixel_list.push(PixelChunk { x, y });
-        }
-    }
-
     let mut thread_handles = Vec::new();
-    let remaining_pixels = Arc::new(Mutex::new(remaining_pixel_list));
+    let mut thread_receivers = Vec::new();
     let pixels_to_process_count = image_width * image_height;
-    let pixel_count = Arc::new(Mutex::new(pixels_to_process_count));
 
     eprintln!(
         "Rendering {}x{} ({} pixels) image with {} samples per pixel and a max depth of {}, using {} threads", 
@@ -499,42 +490,59 @@ fn main() {
         );
 
     use std::time::Instant;
+    use std::sync::mpsc;
     
     let now = Instant::now();
 
-    for _i in 0..thread_count {
+    for i in 0..thread_count {
         let pixel_colors = Arc::clone(&pixel_colors);
         let world = scene.world.clone();
         let camera = Arc::clone(&camera);
-        let remaining_pixels = Arc::clone(&remaining_pixels);
-        let pixel_count = Arc::clone(&pixel_count);
         let samples_per_pixel = scene.samples_per_pixel;
         let background = scene.background;
 
+        let (tx, rx) = mpsc::channel();
+        thread_receivers.push(rx);
+
         let handle = thread::spawn(move || {
-            loop {
-                let mut remaining_pixels = remaining_pixels.lock().unwrap();
+            let mut local_pixel_colors = vec![vec![Color::new(0.0, 0.0, 0.0); image_height]; image_width];
+            let mut pixels_left = pixels_to_process_count;
+            let mut last_change = 0;
 
-                if let Some(pixel) = remaining_pixels.pop() {
-                    drop(remaining_pixels);
-
+            for x in 0..image_width {
+                for y in 0..image_height {
                     let mut pixel_color = Color::new(0.0, 0.0, 0.0);
-                    for _s in 0..samples_per_pixel {
-                        let u = (pixel.x as f64 + random_double()) / (image_width as f64 - 1.0);
-                        let v = (pixel.y as f64 + random_double()) / (image_height as f64 - 1.0);
+
+                    for _s in 0..samples_per_pixel / thread_count {
+                        let u = (x as f64 + random_double()) / (image_width as f64 - 1.0);
+                        let v = (y as f64 + random_double()) / (image_height as f64 - 1.0);
 
                         let r = camera.get_ray(u, v);
 
                         pixel_color += ray_color(&r, &background, &world.hittables, max_depth, &world.materials);
                     }
 
-                    let mut pixels = pixel_colors.lock().unwrap();
-                    pixels[pixel.x][pixel.y] = pixel_color; 
+                    local_pixel_colors[x][y] = pixel_color;
+                    pixels_left -= 1;
+                    last_change += 1;
 
-                    let mut pixel_count = pixel_count.lock().unwrap();
-                    *pixel_count -= 1;
-                } else {
-                    break;
+                    if last_change == 50 {
+                        match tx.send((i, pixels_left)) {
+                            Ok(_) => {
+                            },
+                            Err(msg) => {
+                                eprintln!("{:?}", msg);
+                            }
+                        }
+                        last_change = 0;
+                    }
+                }
+            }
+
+            let mut pixels = pixel_colors.lock().unwrap();
+            for x in 0..image_width {
+                for y in 0..image_height {
+                    pixels[x][y] += local_pixel_colors[x][y];
                 }
             }
         });
@@ -542,28 +550,38 @@ fn main() {
         thread_handles.push(handle);
     }
         
-    let pixel_count = Arc::clone(&pixel_count);
-
     let one_second = time::Duration::from_secs(1);
+
+    let mut thread_pixel_counts = vec![pixels_to_process_count; thread_count];
 
     let handle = thread::spawn(move || {
         loop {
-            let count = {
-                let pixel_count = pixel_count.lock().unwrap();
-                *pixel_count
-            };
+            for r in &thread_receivers {
+                if let Ok((t_index, count)) = r.try_recv() {
+                    thread_pixel_counts[t_index] = count;
+                }
+            }
+            
+            eprint!("\rProgress: {:?}", &thread_pixel_counts);
+            //eprint!("\rProgress: {:.2}%", 100.0 - (count as f64 / pixels_to_process_count as f64) * 100.0);
+            
+            let mut done = true;
+            for counts in &thread_pixel_counts {
+                if *counts > 0 {
+                    done = false;
+                    break;
+                }
+            }
 
-            eprint!("\rProgress: {:.2}%", 100.0 - (count as f64 / pixels_to_process_count as f64) * 100.0);
-
-            if count > 0 {
-                thread::sleep(one_second); // Sleep one second
+            if !done {
+                //thread::sleep(0.1); // Sleep one second
             } else {
                 break;
             }
         }
     });
 
-    thread_handles.push(handle);
+    //thread_handles.push(handle);
 
 
     for handle in thread_handles {

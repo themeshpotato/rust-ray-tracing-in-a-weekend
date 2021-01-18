@@ -105,7 +105,9 @@ impl Hittable {
                 right = Box::new(cpy[start].clone());
             }
         } else {
-            cpy[start..end].sort_by(comparator);
+            unsafe {
+                cpy[start..end].sort_by(comparator);
+            }
             let mid = start + object_span / 2;
             left = Box::new(Self::new_bvh_node(&cpy, start, mid, time_0, time_1));
             right = Box::new(Self::new_bvh_node(&cpy, mid, end, time_0, time_1));
